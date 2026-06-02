@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS individuals;
+DROP TABLE IF EXISTS populations;

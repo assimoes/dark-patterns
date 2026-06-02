@@ -1,0 +1,1 @@
+ALTER TABLE artifacts ADD COLUMN external_game_id int not null;

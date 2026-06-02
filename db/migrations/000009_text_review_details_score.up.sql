@@ -1,0 +1,1 @@
+ALTER TABLE text_review_details ADD COLUMN weighted_vote_score numeric;

@@ -1,0 +1,1 @@
+ALTER TABLE annotators DROP CONSTRAINT IF EXISTS annotators_label_key;

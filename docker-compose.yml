@@ -8,9 +8,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dsrpwd}
       POSTGRES_DB: dsr_db
     ports:
-      - "127.0.0.1:5436:5436"
+      - "127.0.0.1:5436:5432"
     volumes:
       - dsr-pg-data:/var/lib/postgresql/data
 
 volumes:
-  - dsr-pg-data:
+  dsr-pg-data:
+

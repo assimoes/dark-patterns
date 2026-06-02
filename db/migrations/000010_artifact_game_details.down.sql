@@ -1,0 +1,1 @@
+ALTER TABLE artifacts DROP COLUMN IF EXISTS external_game_id;
