@@ -10,3 +10,6 @@ migrate-up:
 
 migrate-down:
 	@migrate -database $(DATABASE_URL) -path db/migrations down
+
+river-up:
+	@river migrate-up --database-url "$(DATABASE_URL)"

@@ -1,0 +1,12 @@
+{
+    "go.buildTags": "integration",
+    "go.testTags": "integration",
+    "go.testEnvVars": {
+        "TEST_DATABASE_URL": "postgresql://dsr_usr:dsrpwd@localhost:5436/dsr_db?sslmode=disable"
+    },
+    "gopls": {
+        "build.buildFlags": [
+            "-tags=integration"
+        ]
+    }
+}

@@ -27,6 +27,24 @@ func (q *Queries) AddIndividual(ctx context.Context, arg AddIndividualParams) er
 	return err
 }
 
+const getScrapeCursor = `-- name: GetScrapeCursor :one
+SELECT cursor FROM scrape_cursors
+WHERE external_game_id = $1 AND filter = $2 AND language = $3
+`
+
+type GetScrapeCursorParams struct {
+	ExternalGameID int32  `json:"external_game_id"`
+	Filter         string `json:"filter"`
+	Language       string `json:"language"`
+}
+
+func (q *Queries) GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error) {
+	row := q.db.QueryRow(ctx, getScrapeCursor, arg.ExternalGameID, arg.Filter, arg.Language)
+	var cursor string
+	err := row.Scan(&cursor)
+	return cursor, err
+}
+
 const listUnannotatedTextReviews = `-- name: ListUnannotatedTextReviews :many
 SELECT
     i.id as population_item_id,
@@ -145,6 +163,31 @@ func (q *Queries) UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) 
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const upsertScrapeCursor = `-- name: UpsertScrapeCursor :exec
+INSERT INTO scrape_cursors (external_game_id, filter, language, cursor, updated_at)
+VALUES ($1, $2, $3, $4, now())
+ON CONFLICT (external_game_id, filter, language) DO UPDATE
+    SET cursor = EXCLUDED.cursor,
+        updated_at = now()
+`
+
+type UpsertScrapeCursorParams struct {
+	ExternalGameID int32  `json:"external_game_id"`
+	Filter         string `json:"filter"`
+	Language       string `json:"language"`
+	Cursor         string `json:"cursor"`
+}
+
+func (q *Queries) UpsertScrapeCursor(ctx context.Context, arg UpsertScrapeCursorParams) error {
+	_, err := q.db.Exec(ctx, upsertScrapeCursor,
+		arg.ExternalGameID,
+		arg.Filter,
+		arg.Language,
+		arg.Cursor,
+	)
+	return err
 }
 
 const upsertTextReviewDetail = `-- name: UpsertTextReviewDetail :exec

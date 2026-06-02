@@ -10,6 +10,7 @@ import (
 
 type Querier interface {
 	AddIndividual(ctx context.Context, arg AddIndividualParams) error
+	GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error)
 	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
 	ListUnannotatedTextReviews(ctx context.Context, arg ListUnannotatedTextReviewsParams) ([]ListUnannotatedTextReviewsRow, error)
 	// Idempotent. The WHERE guard means an already completed annotation is not touched
@@ -18,6 +19,7 @@ type Querier interface {
 	// Idempotent on source_id; DO UPDATE instead of DO NOTHING because we want it to always return the id even on re-scrape.
 	// ON CONFLICT we update the scraped_at date.
 	UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) (int64, error)
+	UpsertScrapeCursor(ctx context.Context, arg UpsertScrapeCursorParams) error
 	// On re-scrape we only refresh the volatile signal (votes, hours).
 	// body, lang and score stay as first seen on purpose, so annotation always line up with the text they ran on.
 	// An edited review is a new artifact if we ever want to recapture it.
