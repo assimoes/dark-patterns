@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dsr-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dsr_usr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dsrpwd}
+      POSTGRES_DB: dsr_db
+    ports:
+      - "127.0.0.1:5436:5436"
+    volumes:
+      - dsr-pg-data:/var/lib/postgresql/data
+
+volumes:
+  - dsr-pg-data:
