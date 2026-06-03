@@ -10,9 +10,17 @@ import (
 
 type Querier interface {
 	AddIndividual(ctx context.Context, arg AddIndividualParams) error
+	CountArtifactsBySource(ctx context.Context, arg CountArtifactsBySourceParams) (int64, error)
+	CountIndividuals(ctx context.Context, populationID int32) (int64, error)
+	CreatePopulation(ctx context.Context, arg CreatePopulationParams) (int32, error)
+	FreezeStratifiedPopulation(ctx context.Context, arg FreezeStratifiedPopulationParams) (int64, error)
+	GetArtifact(ctx context.Context, id int64) (Artifact, error)
 	GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error)
 	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
 	ListUnannotatedTextReviews(ctx context.Context, arg ListUnannotatedTextReviewsParams) ([]ListUnannotatedTextReviewsRow, error)
+	// Representative selection with common filters and the cutoff
+	// Criteria need dynamic SQL
+	SelectTextReviewsFromPopulation(ctx context.Context, arg SelectTextReviewsFromPopulationParams) ([]SelectTextReviewsFromPopulationRow, error)
 	// Idempotent. The WHERE guard means an already completed annotation is not touched
 	// Returning yields no rows in this case, and the worker treats it as already done
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) (int64, error)

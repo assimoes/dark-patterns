@@ -13,3 +13,9 @@ migrate-down:
 
 river-up:
 	@river migrate-up --database-url "$(DATABASE_URL)"
+
+migrate-tests-up:
+	@migrate -database $(TEST_DATABASE_URL) -path db/migrations up
+
+migrate-tests-down:
+	@migrate -database $(TEST_DATABASE_URL) -path db/migrations down

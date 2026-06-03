@@ -14,7 +14,7 @@ func TestFlexStringUnmarshal(t *testing.T) {
 		{"json string", `"0.5"`, "0.5"},
 		{"base number", `0.5`, "0.5"},
 		{"integer string", `"0"`, "0"},
-		{"null", `"null"`, ""},
+		{"null", "null", ""},
 	}
 
 	for _, c := range cases {
@@ -22,6 +22,10 @@ func TestFlexStringUnmarshal(t *testing.T) {
 			var s flexString
 
 			if err := json.Unmarshal([]byte(c.in), &s); err != nil {
+				t.Fatalf("in %q: want %q, got %q", c.in, c.want, string(s))
+			}
+
+			if string(s) != c.want {
 				t.Fatalf("in %q: want %q, got %q", c.in, c.want, string(s))
 			}
 		})

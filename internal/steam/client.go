@@ -285,7 +285,7 @@ func parseRetryAfter(v string) time.Duration {
 		return 0
 	}
 
-	if secs, err := strconv.Atoi(v); err != nil {
+	if secs, err := strconv.Atoi(v); err == nil {
 		return time.Duration(secs) * time.Second
 	}
 

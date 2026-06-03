@@ -13,4 +13,4 @@ CREATE TABLE IF NOT EXISTS individuals (
     artifact_id bigint not null references artifacts(id),
     created_at timestamptz not null default now(),
     unique(population_id, artifact_id)
-)
+);
