@@ -64,11 +64,12 @@ func (q *Queries) ListUnannotatedTextReviews(ctx context.Context, arg ListUnanno
 }
 
 const upsertAnnotation = `-- name: UpsertAnnotation :one
-INSERT INTO annotations (run_id, individual_id, annotator_id, status, raw_response)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO annotations (run_id, individual_id, annotator_id, status, raw_response, response_meta)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (run_id, individual_id, annotator_id) DO UPDATE
     SET status = EXCLUDED.status,
-        raw_response = EXCLUDED.raw_response
+        raw_response = EXCLUDED.raw_response,
+        response_meta = EXCLUDED.response_meta
     WHERE annotations.status <> 'completed'
 RETURNING id
 `
@@ -79,6 +80,7 @@ type UpsertAnnotationParams struct {
 	AnnotatorID  int32  `json:"annotator_id"`
 	Status       string `json:"status"`
 	RawResponse  []byte `json:"raw_response"`
+	ResponseMeta []byte `json:"response_meta"`
 }
 
 // Idempotent. The WHERE guard means an already completed annotation is not touched
@@ -90,6 +92,7 @@ func (q *Queries) UpsertAnnotation(ctx context.Context, arg UpsertAnnotationPara
 		arg.AnnotatorID,
 		arg.Status,
 		arg.RawResponse,
+		arg.ResponseMeta,
 	)
 	var id int64
 	err := row.Scan(&id)

@@ -12,21 +12,49 @@ type Querier interface {
 	AddIndividual(ctx context.Context, arg AddIndividualParams) error
 	CountArtifactsBySource(ctx context.Context, arg CountArtifactsBySourceParams) (int64, error)
 	CountIndividuals(ctx context.Context, populationID int32) (int64, error)
+	CreateAnnotator(ctx context.Context, arg CreateAnnotatorParams) (int32, error)
 	CreatePopulation(ctx context.Context, arg CreatePopulationParams) (int32, error)
+	CreatePrompt(ctx context.Context, arg CreatePromptParams) (int32, error)
+	CreateRun(ctx context.Context, arg CreateRunParams) (int32, error)
+	// Clear prior pattern rows before re-writing, so a retry doesn't leave stale ones.
+	DeleteAnnotationPatterns(ctx context.Context, annotationID int64) error
 	FreezeStratifiedPopulation(ctx context.Context, arg FreezeStratifiedPopulationParams) (int64, error)
+	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
+	GetLLMAnnotatorByModel(ctx context.Context, modelID *int32) (Annotator, error)
+	GetLatestPrompt(ctx context.Context, name string) (Prompt, error)
+	GetModelBySlug(ctx context.Context, slug string) (Model, error)
+	GetPrompt(ctx context.Context, id int32) (Prompt, error)
+	GetPromptByNameVersion(ctx context.Context, arg GetPromptByNameVersionParams) (Prompt, error)
+	GetRun(ctx context.Context, id int32) (Run, error)
 	GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error)
+	// text-specific query
+	GetTextReviewForIndividual(ctx context.Context, id int64) (GetTextReviewForIndividualRow, error)
+	InsertAnnotationPattern(ctx context.Context, arg InsertAnnotationPatternParams) error
+	ListActiveModels(ctx context.Context) ([]Model, error)
+	ListActiveModelsByModality(ctx context.Context, dollar_1 string) ([]Model, error)
+	ListAnnotators(ctx context.Context) ([]Annotator, error)
+	// The taxonomy as of a pinned version
+	ListMesoPatternsByVersion(ctx context.Context, version int32) ([]ListMesoPatternsByVersionRow, error)
+	// Read the frozen panel.
+	ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error)
+	ListRunsByPopulation(ctx context.Context, populationID int32) ([]Run, error)
 	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
 	ListUnannotatedTextReviews(ctx context.Context, arg ListUnannotatedTextReviewsParams) ([]ListUnannotatedTextReviewsRow, error)
 	// Representative selection with common filters and the cutoff
 	// Criteria need dynamic SQL
 	SelectTextReviewsFromPopulation(ctx context.Context, arg SelectTextReviewsFromPopulationParams) ([]SelectTextReviewsFromPopulationRow, error)
+	// Stamp the digest once. A second snapshot is a no-op
+	SetRunConfigDigest(ctx context.Context, arg SetRunConfigDigestParams) error
+	// Freeze one panel member
+	SnapshotRunAnnotator(ctx context.Context, arg SnapshotRunAnnotatorParams) error
 	// Idempotent. The WHERE guard means an already completed annotation is not touched
 	// Returning yields no rows in this case, and the worker treats it as already done
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) (int64, error)
 	// Idempotent on source_id; DO UPDATE instead of DO NOTHING because we want it to always return the id even on re-scrape.
 	// ON CONFLICT we update the scraped_at date.
 	UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) (int64, error)
+	UpsertModel(ctx context.Context, arg UpsertModelParams) (int32, error)
 	UpsertScrapeCursor(ctx context.Context, arg UpsertScrapeCursorParams) error
 	// On re-scrape we only refresh the volatile signal (votes, hours).
 	// body, lang and score stay as first seen on purpose, so annotation always line up with the text they ran on.

@@ -1,11 +1,12 @@
 -- name: UpsertAnnotation :one
 -- Idempotent. The WHERE guard means an already completed annotation is not touched
 -- Returning yields no rows in this case, and the worker treats it as already done
-INSERT INTO annotations (run_id, individual_id, annotator_id, status, raw_response)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO annotations (run_id, individual_id, annotator_id, status, raw_response, response_meta)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (run_id, individual_id, annotator_id) DO UPDATE
     SET status = EXCLUDED.status,
-        raw_response = EXCLUDED.raw_response
+        raw_response = EXCLUDED.raw_response,
+        response_meta = EXCLUDED.response_meta
     WHERE annotations.status <> 'completed'
 RETURNING id;
 

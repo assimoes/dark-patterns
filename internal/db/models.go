@@ -5,6 +5,8 @@
 package db
 
 import (
+	"encoding/json"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -16,6 +18,7 @@ type Annotation struct {
 	Status       string             `json:"status"`
 	RawResponse  []byte             `json:"raw_response"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ResponseMeta []byte             `json:"response_meta"`
 }
 
 type AnnotationPattern struct {
@@ -93,14 +96,25 @@ type Prompt struct {
 }
 
 type Run struct {
-	ID           int32              `json:"id"`
-	RunType      string             `json:"run_type"`
-	PopulationID int32              `json:"population_id"`
-	PromptID     int32              `json:"prompt_id"`
-	Temperature  pgtype.Numeric     `json:"temperature"`
-	TopP         pgtype.Numeric     `json:"top_p"`
-	Params       []byte             `json:"params"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ID              int32              `json:"id"`
+	RunType         string             `json:"run_type"`
+	PopulationID    int32              `json:"population_id"`
+	PromptID        int32              `json:"prompt_id"`
+	Temperature     pgtype.Numeric     `json:"temperature"`
+	TopP            pgtype.Numeric     `json:"top_p"`
+	Params          []byte             `json:"params"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	TaxonomyVersion *int32             `json:"taxonomy_version"`
+	ConfigDigest    *string            `json:"config_digest"`
+}
+
+type RunAnnotator struct {
+	RunID         int32           `json:"run_id"`
+	AnnotatorID   int32           `json:"annotator_id"`
+	Provider      string          `json:"provider"`
+	ModelSlug     string          `json:"model_slug"`
+	ClientVersion string          `json:"client_version"`
+	Sampling      json.RawMessage `json:"sampling"`
 }
 
 type ScrapeCursor struct {
