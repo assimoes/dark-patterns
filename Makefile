@@ -1,6 +1,6 @@
 include .env
 
-.PHONY: migrate-create
+.PHONY: migrate-create migrate-up river-up migrate-tests-up migrate-tests-down
 
 migrate-create:
 	@migrate create -ext sql -dir db/migrations -seq $(f)
