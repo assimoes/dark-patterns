@@ -47,7 +47,7 @@ func SnapshotPanel(ctx context.Context, q *db.Queries, run db.Run,
 			continue
 		}
 
-		id := ann.Indentity()
+		id := ann.Identity()
 
 		if err := q.SnapshotRunAnnotator(ctx, db.SnapshotRunAnnotatorParams{
 			RunID:         run.ID,

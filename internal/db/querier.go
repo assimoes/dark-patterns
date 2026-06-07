@@ -41,6 +41,9 @@ type Querier interface {
 	ListRunsByPopulation(ctx context.Context, populationID int32) ([]Run, error)
 	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
 	ListUnannotatedTextReviews(ctx context.Context, arg ListUnannotatedTextReviewsParams) ([]ListUnannotatedTextReviewsRow, error)
+	// The work queue for one panel member.
+	// Modality agnostic
+	ListUnnanotatedIndividuals(ctx context.Context, arg ListUnnanotatedIndividualsParams) ([]int64, error)
 	// Representative selection with common filters and the cutoff
 	// Criteria need dynamic SQL
 	SelectTextReviewsFromPopulation(ctx context.Context, arg SelectTextReviewsFromPopulationParams) ([]SelectTextReviewsFromPopulationRow, error)

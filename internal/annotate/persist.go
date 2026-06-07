@@ -36,7 +36,7 @@ func Persist(
 		IndividualID: individualID,
 		AnnotatorID:  annotatorID,
 		Status:       status,
-		RawResponse:  raw,
+		RawResponse:  toJSONB(raw),
 		ResponseMeta: meta.JSON(),
 	})
 
@@ -73,4 +73,14 @@ func Persist(
 	}
 
 	return tx.Commit(ctx)
+}
+
+// toJSONB guarantees a valid jsonb value: pass valid JSON through untouched; wrap
+// anything else (a non-JSON or empty model reply, i.e. the parseError case) as a JSON string.
+func toJSONB(raw json.RawMessage) json.RawMessage {
+	if len(raw) > 0 && json.Valid(raw) {
+		return raw
+	}
+	b, _ := json.Marshal(string(raw)) // always valid JSON (e.g. "" or "I can't help with that")
+	return b
 }

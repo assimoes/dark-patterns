@@ -54,5 +54,5 @@ type Output struct {
 
 type Annotator interface {
 	Annotate(ctx context.Context, in Input) (Output, error)
-	Indentity() RunIdentity
+	Identity() RunIdentity
 }

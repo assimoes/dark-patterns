@@ -27,7 +27,7 @@ func Annotate(ctx context.Context, pool *pgxpool.Pool, rc RenderCtx,
 	status := "completed"
 
 	if parseErr != nil {
-		status = "parseError"
+		status = "parse_error"
 	}
 
 	return Persist(ctx, pool, runID, individualID, annotatorID, status, out.Raw, out.Meta, result, tax)

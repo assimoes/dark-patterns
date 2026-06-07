@@ -29,3 +29,46 @@ func (q *Queries) GetTextReviewForIndividual(ctx context.Context, id int64) (Get
 	err := row.Scan(&i.ArtifactID, &i.Body)
 	return i, err
 }
+
+const listUnnanotatedIndividuals = `-- name: ListUnnanotatedIndividuals :many
+SELECT
+    i.id as individual_id
+FROM runs r
+JOIN individuals i ON i.population_id = r.population_id
+WHERE r.id = $1
+    AND NOT EXISTS (
+        SELECT 1 FROM annotations an
+        WHERE an.run_id = r.id
+            AND an.individual_id = i.id
+            AND an.annotator_id = $2
+            AND an.status = 'completed' 
+    )
+ORDER BY i.id
+`
+
+type ListUnnanotatedIndividualsParams struct {
+	RunID       int32 `json:"run_id"`
+	AnnotatorID int32 `json:"annotator_id"`
+}
+
+// The work queue for one panel member.
+// Modality agnostic
+func (q *Queries) ListUnnanotatedIndividuals(ctx context.Context, arg ListUnnanotatedIndividualsParams) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listUnnanotatedIndividuals, arg.RunID, arg.AnnotatorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var individual_id int64
+		if err := rows.Scan(&individual_id); err != nil {
+			return nil, err
+		}
+		items = append(items, individual_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

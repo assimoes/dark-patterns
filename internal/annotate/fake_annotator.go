@@ -12,7 +12,7 @@ type FakeAnnotator struct {
 	ID       RunIdentity
 }
 
-func (f FakeAnnotator) Indentity() RunIdentity {
+func (f FakeAnnotator) Identity() RunIdentity {
 	return f.ID
 }
 

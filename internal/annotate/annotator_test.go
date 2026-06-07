@@ -26,8 +26,8 @@ func TestFakeAnnotator(t *testing.T) {
 		t.Fatalf("meta: want served_model test_model, got %q", out.Meta.ServedModel)
 	}
 
-	if a.Indentity().Model != "test-model" {
-		t.Fatalf("identity: %+v", a.Indentity())
+	if a.Identity().Model != "test-model" {
+		t.Fatalf("identity: %+v", a.Identity())
 	}
 
 }
