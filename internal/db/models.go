@@ -40,6 +40,7 @@ type AnnotationPattern struct {
 	Evidence     *string            `json:"evidence"`
 	Explanation  *string            `json:"explanation"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	Confidence   pgtype.Numeric     `json:"confidence"`
 }
 
 type Annotator struct {
@@ -138,21 +139,27 @@ type ScrapeCursor struct {
 }
 
 type TaxonomyHighLevel struct {
-	ID          int32  `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Version     int32  `json:"version"`
-	Active      bool   `json:"active"`
+	ID          int32   `json:"id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Version     int32   `json:"version"`
+	Active      bool    `json:"active"`
+	Code        string  `json:"code"`
+	Definition  *string `json:"definition"`
 }
 
 type TaxonomyMesoLevel struct {
-	ID          int32  `json:"id"`
-	ParentID    int32  `json:"parent_id"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Version     int32  `json:"version"`
-	Active      bool   `json:"active"`
+	ID              int32    `json:"id"`
+	ParentID        int32    `json:"parent_id"`
+	Code            string   `json:"code"`
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Version         int32    `json:"version"`
+	Active          bool     `json:"active"`
+	Examples        []string `json:"examples"`
+	CounterExamples []string `json:"counter_examples"`
+	GrayMapping     []string `json:"gray_mapping"`
+	SourceMapping   []string `json:"source_mapping"`
 }
 
 type TextReviewDetail struct {

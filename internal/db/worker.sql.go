@@ -10,7 +10,7 @@ import (
 )
 
 const getTextReviewForIndividual = `-- name: GetTextReviewForIndividual :one
-SELECT a.id AS artifact_id, td.body
+SELECT a.id AS artifact_id, td.body, td.voted_up, td.lang
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN text_review_details td on td.artifact_id = a.id
@@ -20,13 +20,20 @@ WHERE i.id = $1
 type GetTextReviewForIndividualRow struct {
 	ArtifactID int64  `json:"artifact_id"`
 	Body       string `json:"body"`
+	VotedUp    bool   `json:"voted_up"`
+	Lang       string `json:"lang"`
 }
 
 // text-specific query
 func (q *Queries) GetTextReviewForIndividual(ctx context.Context, id int64) (GetTextReviewForIndividualRow, error) {
 	row := q.db.QueryRow(ctx, getTextReviewForIndividual, id)
 	var i GetTextReviewForIndividualRow
-	err := row.Scan(&i.ArtifactID, &i.Body)
+	err := row.Scan(
+		&i.ArtifactID,
+		&i.Body,
+		&i.VotedUp,
+		&i.Lang,
+	)
 	return i, err
 }
 

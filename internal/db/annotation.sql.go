@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteAnnotationPatterns = `-- name: DeleteAnnotationPatterns :exec
@@ -20,16 +22,17 @@ func (q *Queries) DeleteAnnotationPatterns(ctx context.Context, annotationID int
 }
 
 const insertAnnotationPattern = `-- name: InsertAnnotationPattern :exec
-INSERT INTO annotation_patterns (annotation_id, pattern_id, evidence, explanation)
-VALUES ($1, $2, $3, $4)
+INSERT INTO annotation_patterns (annotation_id, pattern_id, evidence, explanation, confidence)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (annotation_id, pattern_id) DO NOTHING
 `
 
 type InsertAnnotationPatternParams struct {
-	AnnotationID int64   `json:"annotation_id"`
-	PatternID    int32   `json:"pattern_id"`
-	Evidence     *string `json:"evidence"`
-	Explanation  *string `json:"explanation"`
+	AnnotationID int64          `json:"annotation_id"`
+	PatternID    int32          `json:"pattern_id"`
+	Evidence     *string        `json:"evidence"`
+	Explanation  *string        `json:"explanation"`
+	Confidence   pgtype.Numeric `json:"confidence"`
 }
 
 func (q *Queries) InsertAnnotationPattern(ctx context.Context, arg InsertAnnotationPatternParams) error {
@@ -38,8 +41,50 @@ func (q *Queries) InsertAnnotationPattern(ctx context.Context, arg InsertAnnotat
 		arg.PatternID,
 		arg.Evidence,
 		arg.Explanation,
+		arg.Confidence,
 	)
 	return err
+}
+
+const listHighLevelsForMesoVersion = `-- name: ListHighLevelsForMesoVersion :many
+SELECT DISTINCT h.id, h.code, h.name, coalesce(h.definition, h.description) AS definition
+FROM taxonomy_high_levels h
+JOIN taxonomy_meso_levels m ON m.parent_id = h.id
+WHERE m.version = $1
+ORDER BY h.id
+`
+
+type ListHighLevelsForMesoVersionRow struct {
+	ID         int32  `json:"id"`
+	Code       string `json:"code"`
+	Name       string `json:"name"`
+	Definition string `json:"definition"`
+}
+
+// The strategic-intent parents used by a pinned meso version
+func (q *Queries) ListHighLevelsForMesoVersion(ctx context.Context, version int32) ([]ListHighLevelsForMesoVersionRow, error) {
+	rows, err := q.db.Query(ctx, listHighLevelsForMesoVersion, version)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListHighLevelsForMesoVersionRow{}
+	for rows.Next() {
+		var i ListHighLevelsForMesoVersionRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.Definition,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listMesoPatternsByVersion = `-- name: ListMesoPatternsByVersion :many
@@ -48,19 +93,29 @@ m.id,
 m.code,
 m.name,
 m.description,
-h.name as high_level_pattern
+h.name as high_level_pattern,
+h.code as high_level_code,
+m.examples,
+m.counter_examples,
+m.gray_mapping,
+m.source_mapping
 FROM taxonomy_meso_levels m
 JOIN taxonomy_high_levels h ON h.id = m.parent_id
 WHERE m.version = $1
-ORDER BY m.code
+ORDER BY h.id, m.code
 `
 
 type ListMesoPatternsByVersionRow struct {
-	ID               int32  `json:"id"`
-	Code             string `json:"code"`
-	Name             string `json:"name"`
-	Description      string `json:"description"`
-	HighLevelPattern string `json:"high_level_pattern"`
+	ID               int32    `json:"id"`
+	Code             string   `json:"code"`
+	Name             string   `json:"name"`
+	Description      string   `json:"description"`
+	HighLevelPattern string   `json:"high_level_pattern"`
+	HighLevelCode    string   `json:"high_level_code"`
+	Examples         []string `json:"examples"`
+	CounterExamples  []string `json:"counter_examples"`
+	GrayMapping      []string `json:"gray_mapping"`
+	SourceMapping    []string `json:"source_mapping"`
 }
 
 // The taxonomy as of a pinned version
@@ -79,6 +134,11 @@ func (q *Queries) ListMesoPatternsByVersion(ctx context.Context, version int32) 
 			&i.Name,
 			&i.Description,
 			&i.HighLevelPattern,
+			&i.HighLevelCode,
+			&i.Examples,
+			&i.CounterExamples,
+			&i.GrayMapping,
+			&i.SourceMapping,
 		); err != nil {
 			return nil, err
 		}

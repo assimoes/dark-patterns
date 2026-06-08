@@ -5,8 +5,8 @@ package annotate
 import (
 	"context"
 	"encoding/json"
-	"html/template"
 	"os"
+	"text/template"
 	"testing"
 
 	"github.com/assimoes/dsr/internal/db"
