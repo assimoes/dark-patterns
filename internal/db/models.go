@@ -10,6 +10,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Adjudication struct {
+	ID                      int64              `json:"id"`
+	RunID                   int32              `json:"run_id"`
+	IndividualID            int64              `json:"individual_id"`
+	PatternID               int32              `json:"pattern_id"`
+	FinalLabel              bool               `json:"final_label"`
+	Direction               string             `json:"direction"`
+	AdjudicatorID           int32              `json:"adjudicator_id"`
+	PanelSeedAtAdjudication json.RawMessage    `json:"panel_seed_at_adjudication"`
+	DecidedAt               pgtype.Timestamptz `json:"decided_at"`
+}
+
 type Annotation struct {
 	ID           int64              `json:"id"`
 	RunID        int32              `json:"run_id"`

@@ -23,9 +23,14 @@ type Querier interface {
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
 	GetLLMAnnotatorByModel(ctx context.Context, modelID *int32) (Annotator, error)
 	GetLatestPrompt(ctx context.Context, name string) (Prompt, error)
+	GetMesoPatternCodes(ctx context.Context, version int32) ([]GetMesoPatternCodesRow, error)
 	GetModelBySlug(ctx context.Context, slug string) (Model, error)
+	// The panel's verdict for one (run, individual, pattern)
+	GetPanelVoteForCell(ctx context.Context, arg GetPanelVoteForCellParams) (GetPanelVoteForCellRow, error)
 	GetPrompt(ctx context.Context, id int32) (Prompt, error)
 	GetPromptByNameVersion(ctx context.Context, arg GetPromptByNameVersionParams) (Prompt, error)
+	// The review body to render for the auditor
+	GetReviewText(ctx context.Context, individualID int64) (string, error)
 	GetRun(ctx context.Context, id int32) (Run, error)
 	GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error)
 	// text-specific query
@@ -34,8 +39,12 @@ type Querier interface {
 	ListActiveModels(ctx context.Context) ([]Model, error)
 	ListActiveModelsByModality(ctx context.Context, dollar_1 string) ([]Model, error)
 	ListAnnotators(ctx context.Context) ([]Annotator, error)
+	// gold run
+	ListDedicedCells(ctx context.Context, runID int32) ([]ListDedicedCellsRow, error)
 	// The taxonomy as of a pinned version
 	ListMesoPatternsByVersion(ctx context.Context, version int32) ([]ListMesoPatternsByVersionRow, error)
+	// Per-rater verdicts with each model's own evidence and explanation
+	ListPanelVotesForCell(ctx context.Context, arg ListPanelVotesForCellParams) ([]ListPanelVotesForCellRow, error)
 	// Read the frozen panel.
 	ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error)
 	ListRunsByPopulation(ctx context.Context, populationID int32) ([]Run, error)
@@ -44,6 +53,10 @@ type Querier interface {
 	// The work queue for one panel member.
 	// Modality agnostic
 	ListUnnanotatedIndividuals(ctx context.Context, arg ListUnnanotatedIndividualsParams) ([]int64, error)
+	// Fixed N individuals per game from the population, ordered deterministically
+	// Always yields the same subset.
+	// Drops any review where a panel member didn't 'complete' (>=1 parse_error) for the panel run
+	SampleStratifiedIndividuals(ctx context.Context, arg SampleStratifiedIndividualsParams) ([]SampleStratifiedIndividualsRow, error)
 	// Representative selection with common filters and the cutoff
 	// Criteria need dynamic SQL
 	SelectTextReviewsFromPopulation(ctx context.Context, arg SelectTextReviewsFromPopulationParams) ([]SelectTextReviewsFromPopulationRow, error)
@@ -51,6 +64,7 @@ type Querier interface {
 	SetRunConfigDigest(ctx context.Context, arg SetRunConfigDigestParams) error
 	// Freeze one panel member
 	SnapshotRunAnnotator(ctx context.Context, arg SnapshotRunAnnotatorParams) error
+	UpsertAdjudication(ctx context.Context, arg UpsertAdjudicationParams) error
 	// Idempotent. The WHERE guard means an already completed annotation is not touched
 	// Returning yields no rows in this case, and the worker treats it as already done
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) (int64, error)
