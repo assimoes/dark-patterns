@@ -12,18 +12,19 @@ import (
 )
 
 const createRun = `-- name: CreateRun :one
-INSERT INTO runs (run_type, population_id, prompt_id, temperature, top_p, params)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO runs (run_type, population_id, prompt_id, temperature, top_p, params, taxonomy_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id
 `
 
 type CreateRunParams struct {
-	RunType      string         `json:"run_type"`
-	PopulationID int32          `json:"population_id"`
-	PromptID     int32          `json:"prompt_id"`
-	Temperature  pgtype.Numeric `json:"temperature"`
-	TopP         pgtype.Numeric `json:"top_p"`
-	Params       []byte         `json:"params"`
+	RunType         string         `json:"run_type"`
+	PopulationID    int32          `json:"population_id"`
+	PromptID        int32          `json:"prompt_id"`
+	Temperature     pgtype.Numeric `json:"temperature"`
+	TopP            pgtype.Numeric `json:"top_p"`
+	Params          []byte         `json:"params"`
+	TaxonomyVersion *int32         `json:"taxonomy_version"`
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (int32, error) {
@@ -34,6 +35,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (int32, er
 		arg.Temperature,
 		arg.TopP,
 		arg.Params,
+		arg.TaxonomyVersion,
 	)
 	var id int32
 	err := row.Scan(&id)

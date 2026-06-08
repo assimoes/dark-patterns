@@ -1,6 +1,6 @@
 -- name: CreateRun :one
-INSERT INTO runs (run_type, population_id, prompt_id, temperature, top_p, params)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO runs (run_type, population_id, prompt_id, temperature, top_p, params, taxonomy_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id;
 
 -- name: GetRun :one
