@@ -66,10 +66,17 @@ WHERE an.run_id = sqlc.arg(panel_run_id)
 ORDER BY an.annotator_id;
 
 -- name: UpsertAdjudication :exec
+-- Re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
+-- the panel seed at the new decision time.
 INSERT INTO adjudications (
     run_id, individual_id, pattern_id, final_label, direction, adjudicator_id, panel_seed_at_adjudication
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (run_id, individual_id, pattern_id) DO NOTHING;
+ON CONFLICT (run_id, individual_id, pattern_id) DO UPDATE
+SET final_label = excluded.final_label,
+    direction = excluded.direction,
+    adjudicator_id = excluded.adjudicator_id,
+    panel_seed_at_adjudication = excluded.panel_seed_at_adjudication,
+    decided_at = now();
 
 -- name: ListDedicedCells :many
 -- gold run
@@ -77,3 +84,48 @@ SELECT individual_id, pattern_id FROM adjudications WHERE run_id = sqlc.arg(run_
 
 -- name: GetMesoPatternCodes :many
 SELECT id, code, name FROM taxonomy_meso_levels WHERE version = sqlc.arg(version) ORDER BY code;
+
+-- name: ListTaxonomy :many
+-- The full MESO codebook for a version: code, name, definition, and the family it sits under.
+SELECT m.id, m.code, m.name, m.description, h.name AS family
+FROM taxonomy_meso_levels m
+JOIN taxonomy_high_levels h ON h.id = m.parent_id
+WHERE m.version = sqlc.arg(version)
+ORDER BY m.id;
+
+-- name: ListReviewDetections :many
+-- Every panel member's detection for one review, across all patterns: who flagged what, with their
+-- evidence and explanation. annotation_patterns holds positives only, so a row means that model
+-- detected that pattern on this review.
+SELECT ap.pattern_id,
+    ra.model_slug,
+    COALESCE(ap.evidence, '')::text as evidence,
+    COALESCE(ap.explanation, '')::text as explanation
+FROM annotations an
+JOIN run_annotators ra ON ra.run_id = an.run_id AND ra.annotator_id = an.annotator_id
+JOIN annotation_patterns ap ON ap.annotation_id = an.id
+WHERE an.run_id = sqlc.arg(panel_run_id)
+    AND an.individual_id = sqlc.arg(individual_id)
+    AND an.status = 'completed'
+ORDER BY ap.pattern_id, ra.model_slug;
+
+-- name: CountCompletedRaters :one
+-- How many panel members completed this review (the denominator for every pattern's vote).
+SELECT count(*)::int as n_total
+FROM annotations
+WHERE run_id = sqlc.arg(panel_run_id)
+    AND individual_id = sqlc.arg(individual_id)
+    AND status = 'completed';
+
+-- name: ListReviewAdjudications :many
+-- Existing gold labels for one review, to pre-fill the checkboxes on revisit.
+SELECT pattern_id, final_label
+FROM adjudications
+WHERE run_id = sqlc.arg(run_id) AND individual_id = sqlc.arg(individual_id);
+
+-- name: CountAdjudicationsPerReview :many
+-- gold run: how many patterns are decided per review, to show progress on the worklist.
+SELECT individual_id, count(*)::int as decided
+FROM adjudications
+WHERE run_id = sqlc.arg(run_id)
+GROUP BY individual_id;
