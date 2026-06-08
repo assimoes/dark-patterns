@@ -10,7 +10,11 @@ import (
 
 type Querier interface {
 	AddIndividual(ctx context.Context, arg AddIndividualParams) error
+	// gold run: how many patterns are decided per review, to show progress on the worklist.
+	CountAdjudicationsPerReview(ctx context.Context, runID int32) ([]CountAdjudicationsPerReviewRow, error)
 	CountArtifactsBySource(ctx context.Context, arg CountArtifactsBySourceParams) (int64, error)
+	// How many panel members completed this review (the denominator for every pattern's vote).
+	CountCompletedRaters(ctx context.Context, arg CountCompletedRatersParams) (int32, error)
 	CountIndividuals(ctx context.Context, populationID int32) (int64, error)
 	CreateAnnotator(ctx context.Context, arg CreateAnnotatorParams) (int32, error)
 	CreatePopulation(ctx context.Context, arg CreatePopulationParams) (int32, error)
@@ -45,9 +49,17 @@ type Querier interface {
 	ListMesoPatternsByVersion(ctx context.Context, version int32) ([]ListMesoPatternsByVersionRow, error)
 	// Per-rater verdicts with each model's own evidence and explanation
 	ListPanelVotesForCell(ctx context.Context, arg ListPanelVotesForCellParams) ([]ListPanelVotesForCellRow, error)
+	// Existing gold labels for one review, to pre-fill the checkboxes on revisit.
+	ListReviewAdjudications(ctx context.Context, arg ListReviewAdjudicationsParams) ([]ListReviewAdjudicationsRow, error)
+	// Every panel member's detection for one review, across all patterns: who flagged what, with their
+	// evidence and explanation. annotation_patterns holds positives only, so a row means that model
+	// detected that pattern on this review.
+	ListReviewDetections(ctx context.Context, arg ListReviewDetectionsParams) ([]ListReviewDetectionsRow, error)
 	// Read the frozen panel.
 	ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error)
 	ListRunsByPopulation(ctx context.Context, populationID int32) ([]Run, error)
+	// The full MESO codebook for a version: code, name, definition, and the family it sits under.
+	ListTaxonomy(ctx context.Context, version int32) ([]ListTaxonomyRow, error)
 	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
 	ListUnannotatedTextReviews(ctx context.Context, arg ListUnannotatedTextReviewsParams) ([]ListUnannotatedTextReviewsRow, error)
 	// The work queue for one panel member.
@@ -64,6 +76,8 @@ type Querier interface {
 	SetRunConfigDigest(ctx context.Context, arg SetRunConfigDigestParams) error
 	// Freeze one panel member
 	SnapshotRunAnnotator(ctx context.Context, arg SnapshotRunAnnotatorParams) error
+	// Re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
+	// the panel seed at the new decision time.
 	UpsertAdjudication(ctx context.Context, arg UpsertAdjudicationParams) error
 	// Idempotent. The WHERE guard means an already completed annotation is not touched
 	// Returning yields no rows in this case, and the worker treats it as already done

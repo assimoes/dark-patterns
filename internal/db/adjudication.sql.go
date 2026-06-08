@@ -10,6 +10,60 @@ import (
 	"encoding/json"
 )
 
+const countAdjudicationsPerReview = `-- name: CountAdjudicationsPerReview :many
+SELECT individual_id, count(*)::int as decided
+FROM adjudications
+WHERE run_id = $1
+GROUP BY individual_id
+`
+
+type CountAdjudicationsPerReviewRow struct {
+	IndividualID int64 `json:"individual_id"`
+	Decided      int32 `json:"decided"`
+}
+
+// gold run: how many patterns are decided per review, to show progress on the worklist.
+func (q *Queries) CountAdjudicationsPerReview(ctx context.Context, runID int32) ([]CountAdjudicationsPerReviewRow, error) {
+	rows, err := q.db.Query(ctx, countAdjudicationsPerReview, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountAdjudicationsPerReviewRow{}
+	for rows.Next() {
+		var i CountAdjudicationsPerReviewRow
+		if err := rows.Scan(&i.IndividualID, &i.Decided); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countCompletedRaters = `-- name: CountCompletedRaters :one
+SELECT count(*)::int as n_total
+FROM annotations
+WHERE run_id = $1
+    AND individual_id = $2
+    AND status = 'completed'
+`
+
+type CountCompletedRatersParams struct {
+	PanelRunID   int32 `json:"panel_run_id"`
+	IndividualID int64 `json:"individual_id"`
+}
+
+// How many panel members completed this review (the denominator for every pattern's vote).
+func (q *Queries) CountCompletedRaters(ctx context.Context, arg CountCompletedRatersParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countCompletedRaters, arg.PanelRunID, arg.IndividualID)
+	var n_total int32
+	err := row.Scan(&n_total)
+	return n_total, err
+}
+
 const getMesoPatternCodes = `-- name: GetMesoPatternCodes :many
 SELECT id, code, name FROM taxonomy_meso_levels WHERE version = $1 ORDER BY code
 `
@@ -174,6 +228,140 @@ func (q *Queries) ListPanelVotesForCell(ctx context.Context, arg ListPanelVotesF
 	return items, nil
 }
 
+const listReviewAdjudications = `-- name: ListReviewAdjudications :many
+SELECT pattern_id, final_label
+FROM adjudications
+WHERE run_id = $1 AND individual_id = $2
+`
+
+type ListReviewAdjudicationsParams struct {
+	RunID        int32 `json:"run_id"`
+	IndividualID int64 `json:"individual_id"`
+}
+
+type ListReviewAdjudicationsRow struct {
+	PatternID  int32 `json:"pattern_id"`
+	FinalLabel bool  `json:"final_label"`
+}
+
+// Existing gold labels for one review, to pre-fill the checkboxes on revisit.
+func (q *Queries) ListReviewAdjudications(ctx context.Context, arg ListReviewAdjudicationsParams) ([]ListReviewAdjudicationsRow, error) {
+	rows, err := q.db.Query(ctx, listReviewAdjudications, arg.RunID, arg.IndividualID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReviewAdjudicationsRow{}
+	for rows.Next() {
+		var i ListReviewAdjudicationsRow
+		if err := rows.Scan(&i.PatternID, &i.FinalLabel); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReviewDetections = `-- name: ListReviewDetections :many
+SELECT ap.pattern_id,
+    ra.model_slug,
+    COALESCE(ap.evidence, '')::text as evidence,
+    COALESCE(ap.explanation, '')::text as explanation
+FROM annotations an
+JOIN run_annotators ra ON ra.run_id = an.run_id AND ra.annotator_id = an.annotator_id
+JOIN annotation_patterns ap ON ap.annotation_id = an.id
+WHERE an.run_id = $1
+    AND an.individual_id = $2
+    AND an.status = 'completed'
+ORDER BY ap.pattern_id, ra.model_slug
+`
+
+type ListReviewDetectionsParams struct {
+	PanelRunID   int32 `json:"panel_run_id"`
+	IndividualID int64 `json:"individual_id"`
+}
+
+type ListReviewDetectionsRow struct {
+	PatternID   int32  `json:"pattern_id"`
+	ModelSlug   string `json:"model_slug"`
+	Evidence    string `json:"evidence"`
+	Explanation string `json:"explanation"`
+}
+
+// Every panel member's detection for one review, across all patterns: who flagged what, with their
+// evidence and explanation. annotation_patterns holds positives only, so a row means that model
+// detected that pattern on this review.
+func (q *Queries) ListReviewDetections(ctx context.Context, arg ListReviewDetectionsParams) ([]ListReviewDetectionsRow, error) {
+	rows, err := q.db.Query(ctx, listReviewDetections, arg.PanelRunID, arg.IndividualID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReviewDetectionsRow{}
+	for rows.Next() {
+		var i ListReviewDetectionsRow
+		if err := rows.Scan(
+			&i.PatternID,
+			&i.ModelSlug,
+			&i.Evidence,
+			&i.Explanation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaxonomy = `-- name: ListTaxonomy :many
+SELECT m.id, m.code, m.name, m.description, h.name AS family
+FROM taxonomy_meso_levels m
+JOIN taxonomy_high_levels h ON h.id = m.parent_id
+WHERE m.version = $1
+ORDER BY m.id
+`
+
+type ListTaxonomyRow struct {
+	ID          int32  `json:"id"`
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Family      string `json:"family"`
+}
+
+// The full MESO codebook for a version: code, name, definition, and the family it sits under.
+func (q *Queries) ListTaxonomy(ctx context.Context, version int32) ([]ListTaxonomyRow, error) {
+	rows, err := q.db.Query(ctx, listTaxonomy, version)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTaxonomyRow{}
+	for rows.Next() {
+		var i ListTaxonomyRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.Description,
+			&i.Family,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const sampleStratifiedIndividuals = `-- name: SampleStratifiedIndividuals :many
 SELECT i.id AS individual_id, a.external_game_id
 FROM individuals i
@@ -240,7 +428,12 @@ const upsertAdjudication = `-- name: UpsertAdjudication :exec
 INSERT INTO adjudications (
     run_id, individual_id, pattern_id, final_label, direction, adjudicator_id, panel_seed_at_adjudication
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (run_id, individual_id, pattern_id) DO NOTHING
+ON CONFLICT (run_id, individual_id, pattern_id) DO UPDATE
+SET final_label = excluded.final_label,
+    direction = excluded.direction,
+    adjudicator_id = excluded.adjudicator_id,
+    panel_seed_at_adjudication = excluded.panel_seed_at_adjudication,
+    decided_at = now()
 `
 
 type UpsertAdjudicationParams struct {
@@ -253,6 +446,8 @@ type UpsertAdjudicationParams struct {
 	PanelSeedAtAdjudication json.RawMessage `json:"panel_seed_at_adjudication"`
 }
 
+// Re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
+// the panel seed at the new decision time.
 func (q *Queries) UpsertAdjudication(ctx context.Context, arg UpsertAdjudicationParams) error {
 	_, err := q.db.Exec(ctx, upsertAdjudication,
 		arg.RunID,
