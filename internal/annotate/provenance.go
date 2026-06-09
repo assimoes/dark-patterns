@@ -117,3 +117,13 @@ func ptrOrNil(s string) *string {
 
 	return &s
 }
+
+func numericOrNil(f *float64) pgtype.Numeric {
+	var n pgtype.Numeric
+	if f == nil {
+		return n
+	}
+
+	_ = n.Scan(strconv.FormatFloat(*f, 'f', -1, 64))
+	return n
+}

@@ -55,6 +55,11 @@ func Persist(
 
 	if status == "completed" {
 		for _, d := range result.Patterns {
+			// closed-world: an entry with present=false is an explicit absence, store nothing.
+			if d.Present != nil && !*d.Present {
+				continue
+			}
+
 			patternID, ok := tax.ID(d.Code)
 			if !ok {
 				// the prompt forbids codes outside the taxonomy
@@ -66,6 +71,7 @@ func Persist(
 				PatternID:    patternID,
 				Evidence:     ptrOrNil(d.Evidence),
 				Explanation:  ptrOrNil(d.Explanation),
+				Confidence:   numericOrNil(d.Confidence),
 			}); err != nil {
 				return err
 			}

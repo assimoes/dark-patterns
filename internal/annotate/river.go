@@ -3,9 +3,11 @@ package annotate
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"log/slog"
+	"strconv"
+	"strings"
 	"sync"
+	"text/template"
 
 	"github.com/assimoes/dsr/internal/db"
 	"github.com/jackc/pgx/v5"
@@ -98,20 +100,35 @@ func (w *AnnotateWorker) loadRunContext(ctx context.Context, runID int32) (*runC
 		return nil, err
 	}
 
-	tmpl, err := template.New("prompt").Parse(prompt.Template)
+	userTmpl, err := template.New("user").Parse(prompt.Template)
 	if err != nil {
 		return nil, err
 	}
 
 	system := ""
 	if prompt.SystemPrompt != nil {
-		system = *prompt.SystemPrompt
+		sysTmpl, err := template.New("system").Parse(*prompt.SystemPrompt)
+		if err != nil {
+			return nil, err
+		}
+
+		var sb strings.Builder
+		if err := sysTmpl.Execute(&sb, promptData{
+			HighLevels:      tax.HighLevels,
+			Patterns:        tax.Patterns,
+			TaxonomyVersion: strconv.Itoa(int(tax.Version)),
+			PromptVersion:   strconv.Itoa(int(prompt.Version)),
+			Taxonomy:        tax.Block,
+		}); err != nil {
+			return nil, err
+		}
+		system = sb.String()
 	}
 
 	rcx := &runContext{
 		rc: RenderCtx{
 			System:   system,
-			Template: tmpl,
+			Template: userTmpl,
 			Taxonomy: tax.Block,
 		},
 		tax: tax,
