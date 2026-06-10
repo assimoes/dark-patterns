@@ -13,20 +13,27 @@ import (
 	"time"
 
 	"github.com/assimoes/dsr/internal/annotate"
+	"github.com/assimoes/dsr/internal/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
-var panelSlugs = []string{
-	"openai/gpt-4o-mini",
-	"anthropic/claude-3.5-haiku",
-	"google/gemini-2.5-flash-lite",
-	"deepseek/deepseek-chat-v3.1",
+// panelRegistry builds the slug->Annotator registry from every active llm annotator in the DB.
+// The composition root owns this: which models exist is data (the annotators/models rows), and the
+// concrete callers are wired here. A run's subset is enforced later by SnapshotPanel via
+// runs.annotator_ids, so the registry is always the full active panel.
+func panelRegistry(ctx context.Context, pool *pgxpool.Pool, dry bool) (map[string]annotate.Annotator, error) {
+	anns, err := db.New(pool).ListLLMAnnotators(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return buildRegistry(anns, dry)
 }
 
-func buildRegistry(dryRun bool) (map[string]annotate.Annotator, error) {
-	if dryRun {
+func buildRegistry(annotators []db.ListLLMAnnotatorsRow, dry bool) (map[string]annotate.Annotator, error) {
+	if dry {
 		return map[string]annotate.Annotator{
 			"test-model": annotate.FakeAnnotator{
 				Response: json.RawMessage(
@@ -44,12 +51,11 @@ func buildRegistry(dryRun bool) (map[string]annotate.Annotator, error) {
 
 	httpClient := &http.Client{Timeout: 90 * time.Second}
 
-	registry := make(map[string]annotate.Annotator, len(panelSlugs))
-
-	for _, slug := range panelSlugs {
-		registry[slug] = annotate.NewOpenRouterAnnotator(
+	registry := make(map[string]annotate.Annotator, len(annotators))
+	for _, a := range annotators {
+		registry[a.Slug] = annotate.NewOpenRouterAnnotator(
 			key,
-			slug,
+			a.Slug,
 			annotate.WithHTTPClient(httpClient),
 			annotate.WithClientVersion("openrouter/v1"),
 			annotate.WithAttribution("https://github.com/assimoes/dark-patterns", "design science research artifact"),
@@ -98,7 +104,7 @@ func main() {
 			os.Exit(2)
 		}
 
-		registry, err := buildRegistry(*dry)
+		registry, err := panelRegistry(ctx, pool, *dry)
 		if err != nil {
 			logger.Error("build registry", "err", err)
 			os.Exit(1)
@@ -123,7 +129,7 @@ func main() {
 		dry := fs.Bool("dry", false, "use the offline dry run panel instead of openrouter")
 		_ = fs.Parse(os.Args[2:])
 
-		registry, err := buildRegistry(*dry)
+		registry, err := panelRegistry(ctx, pool, *dry)
 		if err != nil {
 			logger.Error("build registry", "err", err)
 			os.Exit(1)

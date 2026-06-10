@@ -119,6 +119,7 @@ type Run struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	TaxonomyVersion *int32             `json:"taxonomy_version"`
 	ConfigDigest    *string            `json:"config_digest"`
+	AnnotatorIds    []int32            `json:"annotator_ids"`
 }
 
 type RunAnnotator struct {
