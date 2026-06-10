@@ -12,8 +12,8 @@ import (
 )
 
 const createRun = `-- name: CreateRun :one
-INSERT INTO runs (run_type, population_id, prompt_id, temperature, top_p, params, taxonomy_version)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO runs (run_type, population_id, prompt_id, temperature, top_p, params, taxonomy_version, annotator_ids)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id
 `
 
@@ -25,6 +25,7 @@ type CreateRunParams struct {
 	TopP            pgtype.Numeric `json:"top_p"`
 	Params          []byte         `json:"params"`
 	TaxonomyVersion *int32         `json:"taxonomy_version"`
+	AnnotatorIds    []int32        `json:"annotator_ids"`
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (int32, error) {
@@ -36,6 +37,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (int32, er
 		arg.TopP,
 		arg.Params,
 		arg.TaxonomyVersion,
+		arg.AnnotatorIds,
 	)
 	var id int32
 	err := row.Scan(&id)
@@ -43,7 +45,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (int32, er
 }
 
 const getRun = `-- name: GetRun :one
-SELECT id, run_type, population_id, prompt_id, temperature, top_p, params, created_at, taxonomy_version, config_digest FROM runs WHERE id = $1
+SELECT id, run_type, population_id, prompt_id, temperature, top_p, params, created_at, taxonomy_version, config_digest, annotator_ids FROM runs WHERE id = $1
 `
 
 func (q *Queries) GetRun(ctx context.Context, id int32) (Run, error) {
@@ -60,12 +62,13 @@ func (q *Queries) GetRun(ctx context.Context, id int32) (Run, error) {
 		&i.CreatedAt,
 		&i.TaxonomyVersion,
 		&i.ConfigDigest,
+		&i.AnnotatorIds,
 	)
 	return i, err
 }
 
 const listRunsByPopulation = `-- name: ListRunsByPopulation :many
-SELECT id, run_type, population_id, prompt_id, temperature, top_p, params, created_at, taxonomy_version, config_digest FROM runs WHERE population_id = $1 ORDER BY created_at DESC
+SELECT id, run_type, population_id, prompt_id, temperature, top_p, params, created_at, taxonomy_version, config_digest, annotator_ids FROM runs WHERE population_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListRunsByPopulation(ctx context.Context, populationID int32) ([]Run, error) {
@@ -88,6 +91,7 @@ func (q *Queries) ListRunsByPopulation(ctx context.Context, populationID int32) 
 			&i.CreatedAt,
 			&i.TaxonomyVersion,
 			&i.ConfigDigest,
+			&i.AnnotatorIds,
 		); err != nil {
 			return nil, err
 		}

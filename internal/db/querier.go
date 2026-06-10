@@ -43,10 +43,13 @@ type Querier interface {
 	ListActiveModels(ctx context.Context) ([]Model, error)
 	ListActiveModelsByModality(ctx context.Context, dollar_1 string) ([]Model, error)
 	ListAnnotators(ctx context.Context) ([]Annotator, error)
+	ListAnnotatorsByIDs(ctx context.Context, ids []int32) ([]Annotator, error)
 	// gold run
 	ListDedicedCells(ctx context.Context, runID int32) ([]ListDedicedCellsRow, error)
 	// The strategic-intent parents used by a pinned meso version
 	ListHighLevelsForMesoVersion(ctx context.Context, version int32) ([]ListHighLevelsForMesoVersionRow, error)
+	// The active LLM panel fetch from the DB with each annotator with its model slug
+	ListLLMAnnotators(ctx context.Context) ([]ListLLMAnnotatorsRow, error)
 	// The taxonomy as of a pinned version
 	ListMesoPatternsByVersion(ctx context.Context, version int32) ([]ListMesoPatternsByVersionRow, error)
 	// Per-rater verdicts with each model's own evidence and explanation

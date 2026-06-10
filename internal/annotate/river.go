@@ -185,7 +185,8 @@ func Enqueue(ctx context.Context, client *river.Client[pgx.Tx],
 		return 0, err
 	}
 
-	// freeze the plan. After this the panel is read from run_annotators and its never re-derived
+	// freeze the plan. SnapshotPanel keeps only the run's pinned annotator_ids (all llm when none
+	// are pinned); after this the panel is read from run_annotators and never re-derived.
 
 	if err := SnapshotPanel(ctx, q, run, prompt, tax, registry); err != nil {
 		return 0, err

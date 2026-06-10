@@ -33,10 +33,23 @@ func SnapshotPanel(ctx context.Context, q *db.Queries, run db.Run,
 
 	sampling, _ := json.Marshal(map[string]any{"temperature": numericToFloat(run.Temperature)})
 
+	var want map[int32]bool
+	if len(run.AnnotatorIds) > 0 {
+		want = make(map[int32]bool, len(run.AnnotatorIds))
+
+		for _, id := range run.AnnotatorIds {
+			want[id] = true
+		}
+	}
+
 	var slugs []string
 
 	for _, a := range annotators {
 		if a.Kind != "llm" || a.ModelID == nil {
+			continue
+		}
+
+		if want != nil && !want[a.ID] {
 			continue
 		}
 

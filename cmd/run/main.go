@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/assimoes/dsr/internal/annotate"
 	"github.com/assimoes/dsr/internal/db"
@@ -22,6 +24,7 @@ func main() {
 		taxVersion   = flag.Int("taxonomy-version", 1, "taxonomy generation the run pins")
 		runType      = flag.String("type", "llm_panel", "run type: llm_panel | gold")
 		temperature  = flag.Float64("temperature", 0, "sampling temperature")
+		annotators   = flag.String("annotators", "", "annotators to be used in this run")
 	)
 
 	flag.Parse()
@@ -33,6 +36,12 @@ func main() {
 
 	if *runType != "llm_panel" && *runType != "gold" {
 		logger.Error("invalid -type (want llm_panel | gold)", "type", *runType)
+		os.Exit(2)
+	}
+
+	annotatorIDs, err := parseAnnotatorsIDs(*annotators)
+	if err != nil {
+		logger.Error("invalid -annotators", "err", err)
 		os.Exit(2)
 	}
 
@@ -54,7 +63,7 @@ func main() {
 
 	// validate before inserting
 
-	if err := validate(ctx, q, int32(*populationID), int32(*promptID), int32(*taxVersion)); err != nil {
+	if err := validate(ctx, q, annotatorIDs, int32(*populationID), int32(*promptID), int32(*taxVersion)); err != nil {
 		logger.Error("validation failed", "err", err)
 		os.Exit(1)
 	}
@@ -74,6 +83,7 @@ func main() {
 		TopP:            pgtype.Numeric{},
 		Params:          nil,
 		TaxonomyVersion: &tv,
+		AnnotatorIds:    annotatorIDs,
 	})
 
 	if err != nil {
@@ -91,7 +101,33 @@ func main() {
 	)
 }
 
-func validate(ctx context.Context, q *db.Queries, populationID, promptID, taxVersion int32) error {
+func validate(ctx context.Context, q *db.Queries, annotatorIDs []int32, populationID, promptID, taxVersion int32) error {
+
+	// ensure annotators exist and are llms
+
+	if len(annotatorIDs) > 0 {
+		rows, err := q.ListAnnotatorsByIDs(ctx, annotatorIDs)
+		if err != nil {
+			return fmt.Errorf("loading annotators %v: %w", annotatorIDs, err)
+		}
+
+		found := make(map[int32]db.Annotator, len(rows))
+		for _, a := range rows {
+			found[a.ID] = a
+		}
+
+		for _, id := range annotatorIDs {
+			a, ok := found[id]
+
+			if !ok {
+				return fmt.Errorf("annotator %d does not exist", id)
+			}
+
+			if a.Kind != "llm" || a.ModelID == nil {
+				return fmt.Errorf("annotator %d is not an llm annotator", id)
+			}
+		}
+	}
 
 	// ensure population exists and has individuals
 	n, err := q.CountIndividuals(ctx, populationID)
@@ -126,4 +162,29 @@ func validate(ctx context.Context, q *db.Queries, populationID, promptID, taxVer
 	_ = annotate.LoadTaxonomy
 
 	return nil
+}
+
+func parseAnnotatorsIDs(csv string) ([]int32, error) {
+	csv = strings.TrimSpace(csv)
+
+	if csv == "" {
+		return nil, nil
+	}
+
+	var ids []int32
+	for _, f := range strings.Split(csv, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+
+		n, err := strconv.Atoi(f)
+		if err != nil {
+			return nil, fmt.Errorf("not an integer annotator id: %q", f)
+		}
+
+		ids = append(ids, int32(n))
+	}
+
+	return ids, nil
 }

@@ -12,3 +12,18 @@ SELECT * FROM annotators WHERE kind = 'llm' and model_id = $1;
 
 -- name: ListAnnotators :many
 SELECT * FROM annotators ORDER BY kind, label;
+
+-- name: ListAnnotatorsByIDs :many
+SELECT * FROM annotators WHERE id = ANY(sqlc.arg(ids)::int[]) ORDER BY id;
+
+-- name: ListLLMAnnotators :many
+-- The active LLM panel fetch from the DB with each annotator with its model slug
+SELECT
+    a.id,
+    a.label,
+    m.slug,
+    m.family
+FROM annotators a
+JOIN models m ON m.id = a.model_id
+WHERE a.kind = 'llm' AND m.active
+ORDER BY a.id;

@@ -92,3 +92,78 @@ func (q *Queries) ListAnnotators(ctx context.Context) ([]Annotator, error) {
 	}
 	return items, nil
 }
+
+const listAnnotatorsByIDs = `-- name: ListAnnotatorsByIDs :many
+SELECT id, kind, model_id, label, created_at FROM annotators WHERE id = ANY($1::int[]) ORDER BY id
+`
+
+func (q *Queries) ListAnnotatorsByIDs(ctx context.Context, ids []int32) ([]Annotator, error) {
+	rows, err := q.db.Query(ctx, listAnnotatorsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Annotator{}
+	for rows.Next() {
+		var i Annotator
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.ModelID,
+			&i.Label,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLLMAnnotators = `-- name: ListLLMAnnotators :many
+SELECT
+    a.id,
+    a.label,
+    m.slug,
+    m.family
+FROM annotators a
+JOIN models m ON m.id = a.model_id
+WHERE a.kind = 'llm' AND m.active
+ORDER BY a.id
+`
+
+type ListLLMAnnotatorsRow struct {
+	ID     int32  `json:"id"`
+	Label  string `json:"label"`
+	Slug   string `json:"slug"`
+	Family string `json:"family"`
+}
+
+// The active LLM panel fetch from the DB with each annotator with its model slug
+func (q *Queries) ListLLMAnnotators(ctx context.Context) ([]ListLLMAnnotatorsRow, error) {
+	rows, err := q.db.Query(ctx, listLLMAnnotators)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLLMAnnotatorsRow{}
+	for rows.Next() {
+		var i ListLLMAnnotatorsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Label,
+			&i.Slug,
+			&i.Family,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
