@@ -2,3 +2,5 @@
 steam-worker
 .vscode
 node_modules
+
+__debug_*

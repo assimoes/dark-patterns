@@ -1,0 +1,1 @@
+DELETE from annotators where kind = 'human' AND model_id IS NULL and label = 'author'
