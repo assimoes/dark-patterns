@@ -43,9 +43,6 @@ export type DashboardData = {
     reviewStats: ReviewStat[];
 };
 
-// Per-LLM-model completed annotation count for a game, from
-// GET /api/games/{gameId}/models. `model` is the model's display name.
-export type ModelStat = { model: string; annotated: number };
 
 // The logged-in user, returned by /api/login and /api/me.
 export type User = { id: number; email: string; displayName: string };
@@ -54,6 +51,26 @@ export type User = { id: number; email: string; displayName: string };
 // value written to POST /api/reviews/{reviewId}/decisions.
 export type Decision = "present" | "absent";
 
+
+// Per-LLM-model completed annotation count, from
+// GET /api/games/{gameId}/populations/{populationId}/models — distinct annotated
+// reviews per model WITHIN a single population. `model` is the display name.
+export type ModelStat = { model: string; annotated: number };
+
+// One population a game appears in, with its coverage, from
+// GET /api/games/{gameId}/populations. `populationId` is numeric; `label` is the
+// population's display name; reviews/annotated scope the coverage bar.
+export type PopulationCoverage = {
+    populationId: number;
+    label: string;
+    reviews: number;
+    annotated: number;
+};
+
+// One member of a population's annotation panel, from
+// GET /api/populations/{populationId}/panel. `kind` is "llm" or "human";
+// `label` is the annotator's display name.
+export type PanelMember = { kind: string; label: string };
 
 // Mock data
 

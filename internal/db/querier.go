@@ -16,6 +16,8 @@ type Querier interface {
 	// How many panel members completed this review (the denominator for every pattern's vote).
 	CountCompletedRaters(ctx context.Context, arg CountCompletedRatersParams) (int32, error)
 	CountIndividuals(ctx context.Context, populationID int32) (int64, error)
+	// Curated individuals (reviews in a population) per game, across every population.
+	CountIndividualsPerGame(ctx context.Context) ([]CountIndividualsPerGameRow, error)
 	CreateAnnotator(ctx context.Context, arg CreateAnnotatorParams) (int32, error)
 	CreatePopulation(ctx context.Context, arg CreatePopulationParams) (int32, error)
 	CreatePrompt(ctx context.Context, arg CreatePromptParams) (int32, error)
@@ -25,12 +27,20 @@ type Querier interface {
 	FreezeStratifiedPopulation(ctx context.Context, arg FreezeStratifiedPopulationParams) (int64, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
+	// The gold run that adjudications for this review's population are written to. There is one gold
+	// run per population; pick the most recent so revisits land on the same row the queue was built from.
+	GetGoldRunForReview(ctx context.Context, individualID int64) (int32, error)
 	GetLLMAnnotatorByModel(ctx context.Context, modelID *int32) (Annotator, error)
 	GetLatestPrompt(ctx context.Context, name string) (Prompt, error)
 	GetMesoPatternCodes(ctx context.Context, version int32) ([]GetMesoPatternCodesRow, error)
 	GetModelBySlug(ctx context.Context, slug string) (Model, error)
+	// The llm panel run whose votes seed a decision on this review. One panel per population; pick the
+	// most recent so the frozen seed reflects the panel the auditor is actually looking at.
+	GetPanelRunForReview(ctx context.Context, individualID int64) (int32, error)
 	// The panel's verdict for one (run, individual, pattern)
 	GetPanelVoteForCell(ctx context.Context, arg GetPanelVoteForCellParams) (GetPanelVoteForCellRow, error)
+	// Resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id for adjudication.
+	GetPatternIDByCode(ctx context.Context, code string) (int32, error)
 	GetPrompt(ctx context.Context, id int32) (Prompt, error)
 	GetPromptByNameVersion(ctx context.Context, arg GetPromptByNameVersionParams) (Prompt, error)
 	// The review body to render for the auditor
@@ -46,14 +56,28 @@ type Querier interface {
 	ListAnnotatorsByIDs(ctx context.Context, ids []int32) ([]Annotator, error)
 	// gold run
 	ListDedicedCells(ctx context.Context, runID int32) ([]ListDedicedCellsRow, error)
+	// The curated games with their presentation metadata. external_game_id is the stable id
+	// the frontend uses as `gameId`; the rest are display-only fields the pipeline never needed.
+	ListGameDisplays(ctx context.Context) ([]GameDisplay, error)
 	// The strategic-intent parents used by a pinned meso version
 	ListHighLevelsForMesoVersion(ctx context.Context, version int32) ([]ListHighLevelsForMesoVersionRow, error)
 	// The active LLM panel fetch from the DB with each annotator with its model slug
 	ListLLMAnnotators(ctx context.Context) ([]ListLLMAnnotatorsRow, error)
+	// The panel members of a run: every annotator referenced by runs.annotator_ids, with the kind
+	// (llm | human) and a display label. LLM members carry their model name, humans their own label.
+	ListMembersForRun(ctx context.Context, runID int32) ([]ListMembersForRunRow, error)
 	// The taxonomy as of a pinned version
 	ListMesoPatternsByVersion(ctx context.Context, version int32) ([]ListMesoPatternsByVersionRow, error)
 	// Per-rater verdicts with each model's own evidence and explanation
 	ListPanelVotesForCell(ctx context.Context, arg ListPanelVotesForCellParams) ([]ListPanelVotesForCellRow, error)
+	// The populations that contain this game's reviews, each with the game's slice: how many of the
+	// game's individuals fall in the population, and how many of those have a completed annotation. A
+	// population is multi-game (stratified, per-game capped), so this is THIS game's part of it. Counts
+	// are per population, never summed across them.
+	ListPopulationsForGame(ctx context.Context, externalGameID int32) ([]ListPopulationsForGameRow, error)
+	// The patterns the panel marked present on one review in one run: a pattern is present when a
+	// majority of the completing raters flagged it. Returns the meso code and name for each.
+	ListPresentPatternsForReview(ctx context.Context, arg ListPresentPatternsForReviewParams) ([]ListPresentPatternsForReviewRow, error)
 	// Existing gold labels for one review, to pre-fill the checkboxes on revisit.
 	ListReviewAdjudications(ctx context.Context, arg ListReviewAdjudicationsParams) ([]ListReviewAdjudicationsRow, error)
 	// Every panel member's detection for one review, across all patterns: who flagged what, with their
@@ -62,7 +86,13 @@ type Querier interface {
 	ListReviewDetections(ctx context.Context, arg ListReviewDetectionsParams) ([]ListReviewDetectionsRow, error)
 	// Read the frozen panel.
 	ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error)
+	// The adjudication queue for a run: every distinct individual (review) annotated in this run,
+	// with the game it belongs to and the review text/vote/language to render. One row per review.
+	ListRunReviews(ctx context.Context, runID int32) ([]ListRunReviewsRow, error)
 	ListRunsByPopulation(ctx context.Context, populationID int32) ([]Run, error)
+	// One row per run with its population's modality as a human label and its creation time.
+	// annotator_ids is the panel the run pinned; members are resolved separately per run.
+	ListRunsForDashboard(ctx context.Context) ([]ListRunsForDashboardRow, error)
 	// The full MESO codebook for a version: code, name, definition, and the family it sits under.
 	ListTaxonomy(ctx context.Context, version int32) ([]ListTaxonomyRow, error)
 	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
@@ -70,6 +100,21 @@ type Querier interface {
 	// The work queue for one panel member.
 	// Modality agnostic
 	ListUnnanotatedIndividuals(ctx context.Context, arg ListUnnanotatedIndividualsParams) ([]int64, error)
+	// Per LLM model, the number of completed annotations produced on reviews of one game.
+	// annotators -> models gives the model name; only completed annotations are counted.
+	ModelStatsForGame(ctx context.Context, externalGameID int32) ([]ModelStatsForGameRow, error)
+	// Per LLM model, the number of DISTINCT reviews of one game annotated within one population. Counting
+	// distinct individuals (not annotation rows) and scoping to a single population makes the models
+	// comparable: inside one population they all share the same work set, so a complete run shows every
+	// model at the population's slice size, not a runaway sum across runs.
+	ModelStatsForGamePopulation(ctx context.Context, arg ModelStatsForGamePopulationParams) ([]ModelStatsForGamePopulationRow, error)
+	// The panel that worked a population: every annotator frozen onto any of the population's runs, with
+	// its kind (llm | human) and a display label (the model name for an llm, the annotator's own label
+	// for a human). run_annotators is the single source of "who annotates this run".
+	PanelForPopulation(ctx context.Context, populationID int32) ([]PanelForPopulationRow, error)
+	// Per game: how many reviews are in scope (curated individuals) and how many have at least one
+	// completed annotation in any run. The annotated count is distinct individuals, not annotations.
+	ReviewStatsPerGame(ctx context.Context) ([]ReviewStatsPerGameRow, error)
 	// Fixed N individuals per game from the population, ordered deterministically
 	// Always yields the same subset.
 	// Drops any review where a panel member didn't 'complete' (>=1 parse_error) for the panel run

@@ -62,6 +62,14 @@ type Artifact struct {
 	ExternalGameID int32              `json:"external_game_id"`
 }
 
+type GameDisplay struct {
+	ExternalGameID int32  `json:"external_game_id"`
+	Name           string `json:"name"`
+	Short          string `json:"short"`
+	Monetization   string `json:"monetization"`
+	DisplayColor   string `json:"display_color"`
+}
+
 type ImageDetail struct {
 	ArtifactID int64   `json:"artifact_id"`
 	ImageUri   string  `json:"image_uri"`
