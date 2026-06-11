@@ -1,3 +1,4 @@
 .env
 steam-worker
 .vscode
+node_modules
