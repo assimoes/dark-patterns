@@ -72,6 +72,185 @@ export type PopulationCoverage = {
 // `label` is the annotator's display name.
 export type PanelMember = { kind: string; label: string };
 
+// POST /api/games — register a curated Steam game.
+export type CreateGameInput = {
+    external_game_id: number;
+    name?: string;
+    short?: string;
+    monetization?: Monetization;
+    color?: string;
+};
+export type CreateGameResult = {
+    id: number;
+    name: string;
+    short: string;
+    monetization: Monetization;
+    color: string;
+};
+
+
+// POST /api/annotators — add a human or an llm panel member.
+export type AnnotatorKind = "human" | "llm";
+export type AddAnnotatorInput = {
+    kind: AnnotatorKind;
+    label: string;
+    family?: string;
+    slug?: string;
+    name?: string;
+    modalities?: string[];
+};
+export type AddAnnotatorResult = {
+    id: number;
+    kind: AnnotatorKind;
+    label: string;
+    model_id: number | null;
+};
+
+// POST /api/populations — materialise a population from filter criteria.
+export type CreatePopulationInput = {
+    description?: string;
+    min_hours_played?: number;
+    per_game_cap?: number;
+    artifacts_cutoff?: string; // RFC3339
+};
+export type CreatePopulationResult = {
+    population_id: number;
+    inserted_individuals: number;
+    total_individuals: number;
+};
+
+
+// POST /api/runs — open an annotation run over a population with a prompt.
+export type RunType = "llm_panel" | "gold";
+export type CreateRunInput = {
+    population_id: number;
+    prompt_id: number;
+    taxonomy_version?: number;
+    run_type?: RunType;
+    temperature?: number;
+    annotator_ids?: number[];
+};
+export type CreateRunResult = {
+    run_id: number;
+    run_type: RunType;
+    population_id: number;
+    prompt_id: number;
+    taxonomy_version: number;
+    annotator_ids: number[];
+};
+
+// POST /api/scrapes — enqueue a Steam reviews scrape for an app id.
+export type ScrapeFilter = "recent" | "updated";
+export type EnqueueScrapeInput = {
+    app: string;
+    filter?: ScrapeFilter;
+    lang?: string;
+    max?: number;
+};
+export type EnqueueScrapeResult = {
+    enqueued: true;
+    game_id: number;
+    filter: string;
+    language: string;
+    max: number;
+};
+
+// POST /api/runs/{runId}/annotations — enqueue annotation jobs for a run.
+export type EnqueueAnnotationsResult = {
+    enqueued: number;
+    run_id: number;
+};
+
+
+// Browse-area read types
+
+// GET /api/populations
+export type PopulationSummary = {
+    id: number;
+    label: string;
+    modality: string;
+    individuals: number;
+    createdAt: string;
+};
+
+// GET /api/populations/{id} — a population with its per-game coverage and the
+// runs opened over it.
+export type PopulationDetail = {
+    id: number;
+    label: string;
+    modality: string;
+    createdAt: string;
+    perGame: {
+        gameId: string;
+        name: string;
+        reviews: number;
+        annotated: number;
+    }[];
+    runs: {
+        id: number;
+        label: string;
+        runType: string;
+    }[];
+};
+
+// GET /api/annotators — one row per annotator.
+export type AnnotatorRow = {
+    id: number;
+    kind: string;
+    label: string;
+    model: string | null;
+};
+
+// GET /api/prompts — one row per prompt template, with its version and the
+// modality it targets.
+export type PromptRow = {
+    id: number;
+    name: string;
+    version: number;
+    modality: string;
+};
+
+// GET /api/runs — one row per run.
+
+export type RunSummary = {
+    id: number;
+    runType: string;
+    label: string;
+    population: string;
+    populationId: number;
+    promptId: number;
+    taxonomyVersion: number | null;
+    createdAt: string;
+    panelSize: number;
+};
+
+// GET /api/runs/{id} — a run with its panel members and whether an adjudication
+export type RunDetail = {
+    id: number;
+    runType: string;
+    population: string;
+    populationId: number;
+    promptId: number;
+    taxonomyVersion: number | null;
+    createdAt: string;
+    panel: {
+        kind: string;
+        label: string;
+    }[];
+    hasSample: boolean;
+};
+
+// GET /api/games — one row per curated game
+export type GameRow = {
+    id: string;
+    name: string;
+    short: string;
+    monetization: string;
+    color: string;
+    reviews: number;
+    annotated: number;
+};
+
 // Mock data
 
 export const games: Game[] = [

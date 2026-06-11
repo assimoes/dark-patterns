@@ -192,3 +192,92 @@ JOIN annotators an ON an.id = ra.annotator_id
 LEFT JOIN models m ON m.id = an.model_id
 WHERE r.population_id = sqlc.arg(population_id)
 ORDER BY an.kind, label;
+
+-- name: InsertGameDisplay :one
+-- Register a game so it appears on the dashboard list and can be scraped.
+INSERT INTO game_display (external_game_id, name, short, monetization, display_color)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (external_game_id) DO UPDATE
+    SET name          = EXCLUDED.name,
+        short         = EXCLUDED.short,
+        monetization  = EXCLUDED.monetization,
+        display_color = EXCLUDED.display_color
+RETURNING external_game_id, name, short, monetization, display_color;
+
+-- name: ListPopulations :many
+-- Every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
+-- still appears with a zero count. Newest first, the order an operator picking a population wants.
+SELECT
+    p.id,
+    p.modality,
+    p.description,
+    p.created_at,
+    count(i.id)::int AS individuals
+FROM populations p
+LEFT JOIN individuals i ON i.population_id = p.id
+GROUP BY p.id
+ORDER BY p.id DESC;
+ 
+-- name: GetPopulation :one
+-- One population row by id, for the population/run detail headers (modality, description, created_at).
+SELECT id, modality, description, created_at FROM populations WHERE id = sqlc.arg(id);
+ 
+-- name: PopulationPerGame :many
+-- For one population, its per-game slice: how many of the population's reviews belong to each game and
+-- how many of those have a completed annotation. Mirrors ListPopulationsForGame but pivots to group by
+-- game within a single population instead of by population within a single game.
+SELECT
+    a.external_game_id,
+    count(DISTINCT i.id)::int AS reviews,
+    count(DISTINCT i.id) FILTER (
+        WHERE EXISTS (
+            SELECT 1 FROM annotations an
+            WHERE an.individual_id = i.id AND an.status = 'completed'
+        )
+    )::int AS annotated
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+WHERE i.population_id = sqlc.arg(population_id)
+GROUP BY a.external_game_id
+ORDER BY a.external_game_id;
+ 
+-- name: ListPrompts :many
+-- Every prompt as a form option: its id, name, version and modality. Ordered by id for a stable list.
+SELECT id, name, version, modality FROM prompts ORDER BY id;
+ 
+-- name: ListRuns :many
+-- Every run with what an operator needs to recognise and pick it: its type, the population modality as a
+-- label, the foreign keys, the taxonomy version, when it ran, and the size of the panel it pinned.
+SELECT
+    r.id,
+    r.run_type,
+    p.modality AS population,
+    r.population_id,
+    r.prompt_id,
+    r.taxonomy_version,
+    r.created_at,
+    coalesce(array_length(r.annotator_ids, 1), 0)::int AS panel_size
+FROM runs r
+JOIN populations p ON p.id = r.population_id
+ORDER BY r.created_at DESC;
+ 
+-- name: ListAnnotatorsWithModel :many
+-- Every annotator as a form option, carrying the display model name for llm annotators (NULL for
+-- humans). ListAnnotators returns the raw rows with only a model_id; this resolves the name in SQL so
+-- the API never has to look models up one by one.
+SELECT
+    an.id,
+    an.kind,
+    an.label,
+    m.name AS model
+FROM annotators an
+LEFT JOIN models m ON m.id = an.model_id
+ORDER BY an.kind, an.label;
+
+-- name: GetLatestSampleForRun :one
+-- The most recent sample drawn for a panel run, to reopen its queue.
+-- SELECT id, panel_run_id, gold_run_id, strategy, seed, params, created_at
+-- FROM adjudication_samples
+-- WHERE panel_run_id = sqlc.arg(panel_run_id)
+-- ORDER BY created_at DESC
+-- LIMIT 1;

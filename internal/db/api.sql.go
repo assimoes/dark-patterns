@@ -95,6 +95,115 @@ func (q *Queries) GetPatternIDByCode(ctx context.Context, code string) (int32, e
 	return id, err
 }
 
+const getPopulation = `-- name: GetPopulation :one
+SELECT id, modality, description, created_at FROM populations WHERE id = $1
+`
+
+type GetPopulationRow struct {
+	ID          int32              `json:"id"`
+	Modality    string             `json:"modality"`
+	Description *string            `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+// One population row by id, for the population/run detail headers (modality, description, created_at).
+func (q *Queries) GetPopulation(ctx context.Context, id int32) (GetPopulationRow, error) {
+	row := q.db.QueryRow(ctx, getPopulation, id)
+	var i GetPopulationRow
+	err := row.Scan(
+		&i.ID,
+		&i.Modality,
+		&i.Description,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertGameDisplay = `-- name: InsertGameDisplay :one
+INSERT INTO game_display (external_game_id, name, short, monetization, display_color)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (external_game_id) DO UPDATE
+    SET name          = EXCLUDED.name,
+        short         = EXCLUDED.short,
+        monetization  = EXCLUDED.monetization,
+        display_color = EXCLUDED.display_color
+RETURNING external_game_id, name, short, monetization, display_color
+`
+
+type InsertGameDisplayParams struct {
+	ExternalGameID int32  `json:"external_game_id"`
+	Name           string `json:"name"`
+	Short          string `json:"short"`
+	Monetization   string `json:"monetization"`
+	DisplayColor   string `json:"display_color"`
+}
+
+// Register a game so it appears on the dashboard list and can be scraped.
+func (q *Queries) InsertGameDisplay(ctx context.Context, arg InsertGameDisplayParams) (GameDisplay, error) {
+	row := q.db.QueryRow(ctx, insertGameDisplay,
+		arg.ExternalGameID,
+		arg.Name,
+		arg.Short,
+		arg.Monetization,
+		arg.DisplayColor,
+	)
+	var i GameDisplay
+	err := row.Scan(
+		&i.ExternalGameID,
+		&i.Name,
+		&i.Short,
+		&i.Monetization,
+		&i.DisplayColor,
+	)
+	return i, err
+}
+
+const listAnnotatorsWithModel = `-- name: ListAnnotatorsWithModel :many
+SELECT
+    an.id,
+    an.kind,
+    an.label,
+    m.name AS model
+FROM annotators an
+LEFT JOIN models m ON m.id = an.model_id
+ORDER BY an.kind, an.label
+`
+
+type ListAnnotatorsWithModelRow struct {
+	ID    int32   `json:"id"`
+	Kind  string  `json:"kind"`
+	Label string  `json:"label"`
+	Model *string `json:"model"`
+}
+
+// Every annotator as a form option, carrying the display model name for llm annotators (NULL for
+// humans). ListAnnotators returns the raw rows with only a model_id; this resolves the name in SQL so
+// the API never has to look models up one by one.
+func (q *Queries) ListAnnotatorsWithModel(ctx context.Context) ([]ListAnnotatorsWithModelRow, error) {
+	rows, err := q.db.Query(ctx, listAnnotatorsWithModel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnnotatorsWithModelRow{}
+	for rows.Next() {
+		var i ListAnnotatorsWithModelRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Label,
+			&i.Model,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGameDisplays = `-- name: ListGameDisplays :many
 SELECT external_game_id, name, short, monetization, display_color
 FROM game_display
@@ -159,6 +268,55 @@ func (q *Queries) ListMembersForRun(ctx context.Context, runID int32) ([]ListMem
 	for rows.Next() {
 		var i ListMembersForRunRow
 		if err := rows.Scan(&i.ID, &i.Kind, &i.Label); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPopulations = `-- name: ListPopulations :many
+SELECT
+    p.id,
+    p.modality,
+    p.description,
+    p.created_at,
+    count(i.id)::int AS individuals
+FROM populations p
+LEFT JOIN individuals i ON i.population_id = p.id
+GROUP BY p.id
+ORDER BY p.id DESC
+`
+
+type ListPopulationsRow struct {
+	ID          int32              `json:"id"`
+	Modality    string             `json:"modality"`
+	Description *string            `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	Individuals int32              `json:"individuals"`
+}
+
+// Every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
+// still appears with a zero count. Newest first, the order an operator picking a population wants.
+func (q *Queries) ListPopulations(ctx context.Context) ([]ListPopulationsRow, error) {
+	rows, err := q.db.Query(ctx, listPopulations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPopulationsRow{}
+	for rows.Next() {
+		var i ListPopulationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Modality,
+			&i.Description,
+			&i.CreatedAt,
+			&i.Individuals,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -279,6 +437,43 @@ func (q *Queries) ListPresentPatternsForReview(ctx context.Context, arg ListPres
 	return items, nil
 }
 
+const listPrompts = `-- name: ListPrompts :many
+SELECT id, name, version, modality FROM prompts ORDER BY id
+`
+
+type ListPromptsRow struct {
+	ID       int32  `json:"id"`
+	Name     string `json:"name"`
+	Version  int32  `json:"version"`
+	Modality string `json:"modality"`
+}
+
+// Every prompt as a form option: its id, name, version and modality. Ordered by id for a stable list.
+func (q *Queries) ListPrompts(ctx context.Context) ([]ListPromptsRow, error) {
+	rows, err := q.db.Query(ctx, listPrompts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPromptsRow{}
+	for rows.Next() {
+		var i ListPromptsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Version,
+			&i.Modality,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRunReviews = `-- name: ListRunReviews :many
 SELECT DISTINCT
     i.id AS individual_id,
@@ -319,6 +514,63 @@ func (q *Queries) ListRunReviews(ctx context.Context, runID int32) ([]ListRunRev
 			&i.VotedUp,
 			&i.Lang,
 			&i.Body,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuns = `-- name: ListRuns :many
+SELECT
+    r.id,
+    r.run_type,
+    p.modality AS population,
+    r.population_id,
+    r.prompt_id,
+    r.taxonomy_version,
+    r.created_at,
+    coalesce(array_length(r.annotator_ids, 1), 0)::int AS panel_size
+FROM runs r
+JOIN populations p ON p.id = r.population_id
+ORDER BY r.created_at DESC
+`
+
+type ListRunsRow struct {
+	ID              int32              `json:"id"`
+	RunType         string             `json:"run_type"`
+	Population      string             `json:"population"`
+	PopulationID    int32              `json:"population_id"`
+	PromptID        int32              `json:"prompt_id"`
+	TaxonomyVersion *int32             `json:"taxonomy_version"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	PanelSize       int32              `json:"panel_size"`
+}
+
+// Every run with what an operator needs to recognise and pick it: its type, the population modality as a
+// label, the foreign keys, the taxonomy version, when it ran, and the size of the panel it pinned.
+func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
+	rows, err := q.db.Query(ctx, listRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRunsRow{}
+	for rows.Next() {
+		var i ListRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RunType,
+			&i.Population,
+			&i.PopulationID,
+			&i.PromptID,
+			&i.TaxonomyVersion,
+			&i.CreatedAt,
+			&i.PanelSize,
 		); err != nil {
 			return nil, err
 		}
@@ -502,6 +754,52 @@ func (q *Queries) PanelForPopulation(ctx context.Context, populationID int32) ([
 	for rows.Next() {
 		var i PanelForPopulationRow
 		if err := rows.Scan(&i.Kind, &i.Label); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const populationPerGame = `-- name: PopulationPerGame :many
+SELECT
+    a.external_game_id,
+    count(DISTINCT i.id)::int AS reviews,
+    count(DISTINCT i.id) FILTER (
+        WHERE EXISTS (
+            SELECT 1 FROM annotations an
+            WHERE an.individual_id = i.id AND an.status = 'completed'
+        )
+    )::int AS annotated
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+WHERE i.population_id = $1
+GROUP BY a.external_game_id
+ORDER BY a.external_game_id
+`
+
+type PopulationPerGameRow struct {
+	ExternalGameID int32 `json:"external_game_id"`
+	Reviews        int32 `json:"reviews"`
+	Annotated      int32 `json:"annotated"`
+}
+
+// For one population, its per-game slice: how many of the population's reviews belong to each game and
+// how many of those have a completed annotation. Mirrors ListPopulationsForGame but pivots to group by
+// game within a single population instead of by population within a single game.
+func (q *Queries) PopulationPerGame(ctx context.Context, populationID int32) ([]PopulationPerGameRow, error) {
+	rows, err := q.db.Query(ctx, populationPerGame, populationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PopulationPerGameRow{}
+	for rows.Next() {
+		var i PopulationPerGameRow
+		if err := rows.Scan(&i.ExternalGameID, &i.Reviews, &i.Annotated); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

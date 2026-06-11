@@ -10,9 +10,3 @@ CREATE TABLE IF NOT EXISTS game_display (
     monetization text not null check (monetization in ('f2p', 'b2p', 'sub')),
     display_color text not null
 );
- 
--- scraped under (the same ids stored on artifacts.external_game_id).
-INSERT INTO game_display (external_game_id, name, short, monetization, display_color)
-VALUES
-    (1875580, 'Mina the Hollower', 'Mina', 'b2p', '#2563cc')
-ON CONFLICT (external_game_id) DO NOTHING;

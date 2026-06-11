@@ -87,3 +87,97 @@ type PanelMember struct {
 	Kind  string `json:"kind"`
 	Label string `json:"label"`
 }
+
+// Population is one curated population as a pick-list row: its size and a human label (its description
+// when set, otherwise a stable "Population #<id>").
+type Population struct {
+	ID          int    `json:"id"`
+	Label       string `json:"label"`
+	Modality    string `json:"modality"`
+	Individuals int    `json:"individuals"`
+	CreatedAt   string `json:"createdAt"`
+}
+
+// PopulationGame is one game's slice of a population: how many of the population's reviews belong to the
+// game and how many are annotated, with the game's display name.
+type PopulationGame struct {
+	GameID    string `json:"gameId"`
+	Name      string `json:"name"`
+	Reviews   int    `json:"reviews"`
+	Annotated int    `json:"annotated"`
+}
+
+// PopulationRun is one run that worked a population, as a compact reference for the population detail.
+type PopulationRun struct {
+	ID      int    `json:"id"`
+	Label   string `json:"label"`
+	RunType string `json:"runType"`
+}
+
+// PopulationDetail is the body of GET /api/populations/{populationId}: the population header, its
+// per-game breakdown, and the runs that worked it.
+type PopulationDetail struct {
+	ID        int              `json:"id"`
+	Label     string           `json:"label"`
+	Modality  string           `json:"modality"`
+	CreatedAt string           `json:"createdAt"`
+	PerGame   []PopulationGame `json:"perGame"`
+	Runs      []PopulationRun  `json:"runs"`
+}
+
+// Annotator is one annotator as a form option: its kind, label, and the model name for llm annotators
+// (null for humans).
+type Annotator struct {
+	ID    int     `json:"id"`
+	Kind  string  `json:"kind"`
+	Label string  `json:"label"`
+	Model *string `json:"model"`
+}
+
+// Prompt is one prompt as a form option: its id, name, version and modality.
+type Prompt struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Version  int    `json:"version"`
+	Modality string `json:"modality"`
+}
+
+// RunSummary is one run in the run list: enough to recognise and pick it, including the panel size and a
+// human label ("<run_type> #<id>").
+type RunSummary struct {
+	ID              int    `json:"id"`
+	RunType         string `json:"runType"`
+	Label           string `json:"label"`
+	Population      string `json:"population"`
+	PopulationID    int    `json:"populationId"`
+	PromptID        int    `json:"promptId"`
+	TaxonomyVersion *int   `json:"taxonomyVersion"`
+	CreatedAt       string `json:"createdAt"`
+	PanelSize       int    `json:"panelSize"`
+}
+
+// RunDetail is the body of GET /api/runs/{runId}: the run header, its frozen panel, and whether an
+// adjudication sample has been drawn for it.
+type RunDetail struct {
+	ID              int      `json:"id"`
+	RunType         string   `json:"runType"`
+	Population      string   `json:"population"`
+	PopulationID    int      `json:"populationId"`
+	PromptID        int      `json:"promptId"`
+	TaxonomyVersion *int     `json:"taxonomyVersion"`
+	CreatedAt       string   `json:"createdAt"`
+	Panel           []Member `json:"panel"`
+	HasSample       bool     `json:"hasSample"`
+}
+
+// GameSummary is one game with its presentation metadata and its review progress (reviews in scope and
+// how many are annotated), the row a games list/grid renders.
+type GameSummary struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Short        string `json:"short"`
+	Monetization string `json:"monetization"`
+	Color        string `json:"color"`
+	Reviews      int    `json:"reviews"`
+	Annotated    int    `json:"annotated"`
+}

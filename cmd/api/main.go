@@ -13,6 +13,8 @@ import (
 	"github.com/assimoes/dsr/internal/api"
 	"github.com/assimoes/dsr/internal/db"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
 func main() {
@@ -43,8 +45,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	sameSite := http.SameSiteLaxMode
+	if getenv("SESSION_SAMESITE", "lax") == "none" {
+		sameSite = http.SameSiteNoneMode
+	}
+
+	riverClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
+	if err != nil {
+		logger.Error("river client", "err", err)
+		os.Exit(1)
+	}
+
 	origin := getenv("FRONTEND_ORIGIN", "http://localhost:3000")
-	server := api.NewServer(pool, auditor.ID, origin, logger)
+	server := api.NewServer(pool, auditor.ID, origin, sameSite, riverClient, logger)
 
 	addr := ":" + getenv("PORT", "8080")
 	srv := &http.Server{
