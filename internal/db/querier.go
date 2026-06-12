@@ -25,6 +25,7 @@ type Querier interface {
 	// Clear prior pattern rows before re-writing, so a retry doesn't leave stale ones.
 	DeleteAnnotationPatterns(ctx context.Context, annotationID int64) error
 	FreezeStratifiedPopulation(ctx context.Context, arg FreezeStratifiedPopulationParams) (int64, error)
+	GameReviewTotals(ctx context.Context) ([]GameReviewTotalsRow, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
 	// The gold run that adjudications for this review's population are written to. There is one gold
@@ -124,6 +125,7 @@ type Querier interface {
 	// comparable: inside one population they all share the same work set, so a complete run shows every
 	// model at the population's slice size, not a runaway sum across runs.
 	ModelStatsForGamePopulation(ctx context.Context, arg ModelStatsForGamePopulationParams) ([]ModelStatsForGamePopulationRow, error)
+	ModelStatsForGameRun(ctx context.Context, arg ModelStatsForGameRunParams) ([]ModelStatsForGameRunRow, error)
 	// The panel that worked a population: every annotator frozen onto any of the population's runs, with
 	// its kind (llm | human) and a display label (the model name for an llm, the annotator's own label
 	// for a human). run_annotators is the single source of "who annotates this run".
@@ -132,8 +134,6 @@ type Querier interface {
 	// how many of those have a completed annotation. Mirrors ListPopulationsForGame but pivots to group by
 	// game within a single population instead of by population within a single game.
 	PopulationPerGame(ctx context.Context, populationID int32) ([]PopulationPerGameRow, error)
-	// Per game: how many reviews are in scope (curated individuals) and how many have at least one
-	// completed annotation in any run. The annotated count is distinct individuals, not annotations.
 	ReviewStatsPerGame(ctx context.Context) ([]ReviewStatsPerGameRow, error)
 	// Fixed N individuals per game from the population, ordered deterministically
 	// Always yields the same subset.

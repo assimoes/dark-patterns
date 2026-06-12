@@ -242,7 +242,7 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	statRows, err := s.q.ReviewStatsPerGame(ctx)
+	statRows, err := s.q.GameReviewTotals(ctx)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "load review stats", err)
 		return

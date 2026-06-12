@@ -40,21 +40,21 @@ WHERE r.id = sqlc.arg(run_id)
 ORDER BY an.kind, an.id;
  
 -- name: ReviewStatsPerGame :many
--- Per game: how many reviews are in scope (curated individuals) and how many have at least one
--- completed annotation in any run. The annotated count is distinct individuals, not annotations.
 SELECT
     a.external_game_id,
+    r.id AS run_id,
+    p.name AS prompt,
     count(DISTINCT i.id)::int AS reviews,
-    count(DISTINCT i.id) FILTER (
-        WHERE EXISTS (
-            SELECT 1 FROM annotations an
-            WHERE an.individual_id = i.id AND an.status = 'completed'
-        )
-    )::int AS annotated
-FROM individuals i
+    count(DISTINCT i.id) FILTER (WHERE an.status = 'completed')::int AS annotated
+FROM runs r
+JOIN individuals i ON i.population_id = r.population_id
 JOIN artifacts a ON a.id = i.artifact_id
-GROUP BY a.external_game_id
-ORDER BY a.external_game_id;
+JOIN prompts p ON p.id = r.prompt_id
+LEFT JOIN annotations an ON an.individual_id = i.id AND an.run_id = r.id
+GROUP BY a.external_game_id, r.id, p.name
+ORDER BY a.external_game_id, r.id;
+
+
  
 -- name: ModelStatsForGame :many
 -- Per LLM model, the number of completed annotations produced on reviews of one game.
@@ -273,6 +273,37 @@ SELECT
 FROM annotators an
 LEFT JOIN models m ON m.id = an.model_id
 ORDER BY an.kind, an.label;
+
+-- name: GameReviewTotals :many
+SELECT
+    a.external_game_id,
+    count(DISTINCT i.id)::int AS reviews,
+    count(DISTINCT i.id) FILTER (
+        WHERE EXISTS (
+            SELECT 1 FROM annotations an
+            WHERE an.individual_id = i.id AND an.status = 'completed'
+        )
+    )::int AS annotated
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+GROUP BY a.external_game_id
+ORDER BY a.external_game_id;
+
+-- name: ModelStatsForGameRun :many
+SELECT
+    m.name AS model,
+    count(DISTINCT i.id)::int AS annotated
+FROM annotations an
+JOIN individuals i ON i.id = an.individual_id
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN annotators ann ON ann.id = an.annotator_id
+JOIN models m ON m.id = ann.model_id
+WHERE a.external_game_id = sqlc.arg(external_game_id)
+    AND an.run_id = sqlc.arg(run_id)
+    AND an.status = 'completed'
+    AND ann.kind = 'llm'
+GROUP BY m.name
+ORDER BY annotated DESC, m.name;
 
 -- name: GetLatestSampleForRun :one
 -- The most recent sample drawn for a panel run, to reopen its queue.

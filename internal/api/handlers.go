@@ -87,6 +87,8 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	for _, st := range statRows {
 		reviewStats = append(reviewStats, ReviewStat{
 			GameID:    gameID(st.ExternalGameID),
+			RunID:     int(st.RunID),
+			Prompt:    st.Prompt,
 			Reviews:   int(st.Reviews),
 			Annotated: int(st.Annotated),
 		})
@@ -351,6 +353,38 @@ func (s *Server) gamePopulationModels(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.q.ModelStatsForGamePopulation(ctx, db.ModelStatsForGamePopulationParams{
 		ExternalGameID: gid,
 		PopulationID:   pid,
+	})
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "load model stats", err)
+		return
+	}
+
+	out := make([]ModelStat, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, ModelStat{Model: m.Model, Annotated: int(m.Annotated)})
+	}
+
+	s.writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) gameRunModels(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	gid, err := parseGameID(r.PathValue("gameId"))
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid gameId", err)
+		return
+	}
+
+	rid, err := parseInt32(r.PathValue("runId"))
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid runId", err)
+		return
+	}
+
+	rows, err := s.q.ModelStatsForGameRun(ctx, db.ModelStatsForGameRunParams{
+		ExternalGameID: gid,
+		RunID:          rid,
 	})
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "load model stats", err)

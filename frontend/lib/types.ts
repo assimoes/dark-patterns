@@ -31,6 +31,8 @@ export type Run = {
 
 export type ReviewStat = {
     gameId: string;
+    runId: number;
+    prompt: string;
     reviews: number;
     annotated: number;
 }

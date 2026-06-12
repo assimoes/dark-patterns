@@ -45,6 +45,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/dashboard", s.dashboard)
 	mux.HandleFunc("GET /api/games/{gameId}/populations", s.gamePopulations)
 	mux.HandleFunc("GET /api/games/{gameId}/populations/{populationId}/models", s.gamePopulationModels)
+	mux.HandleFunc("GET /api/games/{gameId}/runs/{runId}/models", s.gameRunModels)
 	mux.HandleFunc("GET /api/populations/{populationId}/panel", s.populationPanel)
 	mux.HandleFunc("GET /api/runs/{runId}/reviews", s.runReviews)
 	mux.HandleFunc("POST /api/reviews/{reviewId}/decisions", s.reviewDecisions)

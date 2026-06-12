@@ -33,6 +33,8 @@ type Run struct {
 // ReviewStat is per-game progress: reviews in scope and how many are annotated.
 type ReviewStat struct {
 	GameID    string `json:"gameId"`
+	RunID     int    `json:"runId"`
+	Prompt    string `json:"prompt"`
 	Reviews   int    `json:"reviews"`
 	Annotated int    `json:"annotated"`
 }

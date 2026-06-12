@@ -4,6 +4,8 @@ export const qk = {
     gamePopulations: (gameId: string) => ["gamePopulations", gameId] as const,
     gamePopulationModels: (gameId: string, populationId: string) =>
         ["gamePopulationModels", gameId, populationId] as const,
+    gameRunModels: (gameId: string, runId: number) =>
+        ["gameRunModels", gameId, runId] as const,
     populationPanel: (populationId: string) => ["populationPanel", populationId] as const,
     populations: ["populations"] as const,
     population: (id: number) => ["population", id] as const,

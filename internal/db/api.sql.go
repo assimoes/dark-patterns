@@ -45,6 +45,48 @@ func (q *Queries) CountIndividualsPerGame(ctx context.Context) ([]CountIndividua
 	return items, nil
 }
 
+const gameReviewTotals = `-- name: GameReviewTotals :many
+SELECT
+    a.external_game_id,
+    count(DISTINCT i.id)::int AS reviews,
+    count(DISTINCT i.id) FILTER (
+        WHERE EXISTS (
+            SELECT 1 FROM annotations an
+            WHERE an.individual_id = i.id AND an.status = 'completed'
+        )
+    )::int AS annotated
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+GROUP BY a.external_game_id
+ORDER BY a.external_game_id
+`
+
+type GameReviewTotalsRow struct {
+	ExternalGameID int32 `json:"external_game_id"`
+	Reviews        int32 `json:"reviews"`
+	Annotated      int32 `json:"annotated"`
+}
+
+func (q *Queries) GameReviewTotals(ctx context.Context) ([]GameReviewTotalsRow, error) {
+	rows, err := q.db.Query(ctx, gameReviewTotals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GameReviewTotalsRow{}
+	for rows.Next() {
+		var i GameReviewTotalsRow
+		if err := rows.Scan(&i.ExternalGameID, &i.Reviews, &i.Annotated); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGoldRunForReview = `-- name: GetGoldRunForReview :one
 SELECT r.id
 FROM runs r
@@ -724,6 +766,53 @@ func (q *Queries) ModelStatsForGamePopulation(ctx context.Context, arg ModelStat
 	return items, nil
 }
 
+const modelStatsForGameRun = `-- name: ModelStatsForGameRun :many
+SELECT
+    m.name AS model,
+    count(DISTINCT i.id)::int AS annotated
+FROM annotations an
+JOIN individuals i ON i.id = an.individual_id
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN annotators ann ON ann.id = an.annotator_id
+JOIN models m ON m.id = ann.model_id
+WHERE a.external_game_id = $1
+    AND an.run_id = $2
+    AND an.status = 'completed'
+    AND ann.kind = 'llm'
+GROUP BY m.name
+ORDER BY annotated DESC, m.name
+`
+
+type ModelStatsForGameRunParams struct {
+	ExternalGameID int32 `json:"external_game_id"`
+	RunID          int32 `json:"run_id"`
+}
+
+type ModelStatsForGameRunRow struct {
+	Model     string `json:"model"`
+	Annotated int32  `json:"annotated"`
+}
+
+func (q *Queries) ModelStatsForGameRun(ctx context.Context, arg ModelStatsForGameRunParams) ([]ModelStatsForGameRunRow, error) {
+	rows, err := q.db.Query(ctx, modelStatsForGameRun, arg.ExternalGameID, arg.RunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ModelStatsForGameRunRow{}
+	for rows.Next() {
+		var i ModelStatsForGameRunRow
+		if err := rows.Scan(&i.Model, &i.Annotated); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const panelForPopulation = `-- name: PanelForPopulation :many
 SELECT DISTINCT
     an.kind,
@@ -813,27 +902,27 @@ func (q *Queries) PopulationPerGame(ctx context.Context, populationID int32) ([]
 const reviewStatsPerGame = `-- name: ReviewStatsPerGame :many
 SELECT
     a.external_game_id,
+    r.id AS run_id,
+    p.name AS prompt,
     count(DISTINCT i.id)::int AS reviews,
-    count(DISTINCT i.id) FILTER (
-        WHERE EXISTS (
-            SELECT 1 FROM annotations an
-            WHERE an.individual_id = i.id AND an.status = 'completed'
-        )
-    )::int AS annotated
-FROM individuals i
+    count(DISTINCT i.id) FILTER (WHERE an.status = 'completed')::int AS annotated
+FROM runs r
+JOIN individuals i ON i.population_id = r.population_id
 JOIN artifacts a ON a.id = i.artifact_id
-GROUP BY a.external_game_id
-ORDER BY a.external_game_id
+JOIN prompts p ON p.id = r.prompt_id
+LEFT JOIN annotations an ON an.individual_id = i.id AND an.run_id = r.id
+GROUP BY a.external_game_id, r.id, p.name
+ORDER BY a.external_game_id, r.id
 `
 
 type ReviewStatsPerGameRow struct {
-	ExternalGameID int32 `json:"external_game_id"`
-	Reviews        int32 `json:"reviews"`
-	Annotated      int32 `json:"annotated"`
+	ExternalGameID int32  `json:"external_game_id"`
+	RunID          int32  `json:"run_id"`
+	Prompt         string `json:"prompt"`
+	Reviews        int32  `json:"reviews"`
+	Annotated      int32  `json:"annotated"`
 }
 
-// Per game: how many reviews are in scope (curated individuals) and how many have at least one
-// completed annotation in any run. The annotated count is distinct individuals, not annotations.
 func (q *Queries) ReviewStatsPerGame(ctx context.Context) ([]ReviewStatsPerGameRow, error) {
 	rows, err := q.db.Query(ctx, reviewStatsPerGame)
 	if err != nil {
@@ -843,7 +932,13 @@ func (q *Queries) ReviewStatsPerGame(ctx context.Context) ([]ReviewStatsPerGameR
 	items := []ReviewStatsPerGameRow{}
 	for rows.Next() {
 		var i ReviewStatsPerGameRow
-		if err := rows.Scan(&i.ExternalGameID, &i.Reviews, &i.Annotated); err != nil {
+		if err := rows.Scan(
+			&i.ExternalGameID,
+			&i.RunID,
+			&i.Prompt,
+			&i.Reviews,
+			&i.Annotated,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronRight, MessageSquare } from "lucide-react";
 import { Card, Badge } from "@/components/ui/Card";
 import { fmt } from "@/lib/types";
-import type { Game, PopulationCoverage, ReviewStat } from "@/lib/types";
+import type { Game, ReviewStat } from "@/lib/types";
 
-import { useGamePopulationModels } from "@/hooks/useGamePopulationModels";
-import { usePopulationPanel } from "@/hooks/usePopulationPanel";
-import { useGamePopulations } from "@/hooks/useGamePopulations";
+import { useGameRunModels } from "@/hooks/useGameRunModels";
 
 export function ReviewsCard({
     games,
@@ -17,11 +15,8 @@ export function ReviewsCard({
     games: Game[];
     reviewStats: ReviewStat[];
 }) {
-    // Track which games are expanded. A Set lets several stay open at once.
     const [openGames, setOpenGames] = useState<Set<string>>(new Set());
-    // Track which populations are expanded, keyed by `gameId:populationId` so the
-    // same population id under two games never collides.
-    const [openPops, setOpenPops] = useState<Set<string>>(new Set());
+    const [openRuns, setOpenRuns] = useState<Set<string>>(new Set());
 
     const toggleGame = (id: string) =>
         setOpenGames((prev) => {
@@ -31,13 +26,23 @@ export function ReviewsCard({
             return next;
         });
 
-    const togglePop = (key: string) =>
-        setOpenPops((prev) => {
+    const toggleRun = (key: string) =>
+        setOpenRuns((prev) => {
             const next = new Set(prev);
             if (next.has(key)) next.delete(key);
             else next.add(key);
             return next;
         });
+
+    const statsByGame = useMemo(() => {
+        const map = new Map<string, ReviewStat[]>();
+        for (const s of reviewStats) {
+            const list = map.get(s.gameId);
+            if (list) list.push(s);
+            else map.set(s.gameId, [s]);
+        }
+        return map;
+    }, [reviewStats]);
 
     const gameById = (id: string): Game | undefined => games.find((g) => g.id === id);
 
@@ -50,7 +55,7 @@ export function ReviewsCard({
             icon={<MessageSquare className="size-5" />}
             iconClass="bg-emerald-50 text-emerald-600"
             title="Reviews & annotation"
-            subtitle="Coverage per game — drill into populations"
+            subtitle="Coverage per game — drill into runs"
             badge={
                 <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
                     {totalPct}% annotated
@@ -64,15 +69,16 @@ export function ReviewsCard({
             </div>
 
             <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-100">
-                {reviewStats.map((s) => (
+                {Array.from(statsByGame.entries()).map(([gameId, runs]) => (
                     <GameRow
-                        key={s.gameId}
-                        stat={s}
-                        game={gameById(s.gameId)}
-                        isOpen={openGames.has(s.gameId)}
-                        onToggle={() => toggleGame(s.gameId)}
-                        openPops={openPops}
-                        onTogglePop={togglePop}
+                        key={gameId}
+                        gameId={gameId}
+                        runs={runs}
+                        game={gameById(gameId)}
+                        isOpen={openGames.has(gameId)}
+                        onToggle={() => toggleGame(gameId)}
+                        openRuns={openRuns}
+                        onToggleRun={toggleRun}
                     />
                 ))}
             </ul>
@@ -81,25 +87,24 @@ export function ReviewsCard({
 }
 
 function GameRow({
-    stat,
+    gameId,
+    runs,
     game,
     isOpen,
     onToggle,
-    openPops,
-    onTogglePop,
+    openRuns,
+    onToggleRun,
 }: {
-    stat: ReviewStat;
+    gameId: string;
+    runs: ReviewStat[];
     game: Game | undefined;
     isOpen: boolean;
     onToggle: () => void;
-    openPops: Set<string>;
-    onTogglePop: (key: string) => void;
+    openRuns: Set<string>;
+    onToggleRun: (key: string) => void;
 }) {
-    const populations = useGamePopulations(stat.gameId, isOpen);
-
     const color = game?.color ?? "#94a3b8";
-    const name = game?.name ?? stat.gameId;
-    const pct = stat.reviews === 0 ? 0 : Math.round((stat.annotated / stat.reviews) * 100);
+    const name = game?.name ?? gameId;
 
     return (
         <li>
@@ -118,56 +123,31 @@ function GameRow({
                     {name}
                 </span>
 
-                <span className="ml-auto hidden text-slate-500 tabular-nums sm:inline">
-                    <span className="font-medium text-slate-900">{fmt(stat.annotated)}</span> /{" "}
-                    {fmt(stat.reviews)}
-                </span>
-
-                <div className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-slate-100 md:block">
-                    <div
-                        className="h-full rounded-full"
-                        style={{ width: `${pct}%`, backgroundColor: color }}
-                    />
-                </div>
-
-                <span className="w-10 text-right text-xs font-semibold text-slate-700 tabular-nums">
-                    {pct}%
+                <span className="ml-auto text-xs font-medium text-slate-500 tabular-nums">
+                    {runs.length} {runs.length === 1 ? "run" : "runs"}
                 </span>
             </button>
 
             {isOpen ? (
                 <div className="space-y-2.5 border-t border-slate-100 bg-slate-50/60 px-4 py-3.5">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                        Populations
+                        Runs
                     </p>
 
-                    {populations.isPending ? (
-                        <p className="text-xs text-slate-400">Loading populations…</p>
-                    ) : populations.isError ? (
-                        <p className="text-xs text-rose-500">
-                            Couldn&apos;t load populations ·{" "}
-                            <button
-                                type="button"
-                                onClick={() => populations.refetch()}
-                                className="font-medium underline underline-offset-2 hover:text-rose-600"
-                            >
-                                Retry
-                            </button>
-                        </p>
-                    ) : populations.data.length === 0 ? (
-                        <p className="text-xs text-slate-400">No populations yet.</p>
+                    {runs.length === 0 ? (
+                        <p className="text-xs text-slate-400">No runs yet.</p>
                     ) : (
                         <ul className="divide-y divide-slate-200/70 overflow-hidden rounded-lg border border-slate-200/70 bg-white">
-                            {populations.data.map((p: any) => {
-                                const key = `${stat.gameId}:${p.populationId}`;
+                            {runs.map((run) => {
+                                const key = `${gameId}:${run.runId}`;
                                 return (
-                                    <PopulationRow
+                                    <RunRow
                                         key={key}
-                                        gameId={stat.gameId}
-                                        pop={p}
+                                        gameId={gameId}
+                                        run={run}
                                         color={color}
-                                        isOpen={openPops.has(key)}
-                                        onToggle={() => onTogglePop(key)}
+                                        isOpen={openRuns.has(key)}
+                                        onToggle={() => onToggleRun(key)}
                                     />
                                 );
                             })}
@@ -179,24 +159,22 @@ function GameRow({
     );
 }
 
-function PopulationRow({
+function RunRow({
     gameId,
-    pop,
+    run,
     color,
     isOpen,
     onToggle,
 }: {
     gameId: string;
-    pop: PopulationCoverage;
+    run: ReviewStat;
     color: string;
     isOpen: boolean;
     onToggle: () => void;
 }) {
-    const popId = String(pop.populationId);
-    const models = useGamePopulationModels(gameId, popId, isOpen);
-    const panel = usePopulationPanel(popId, isOpen);
+    const models = useGameRunModels(gameId, run.runId, isOpen);
 
-    const pct = pop.reviews === 0 ? 0 : Math.round((pop.annotated / pop.reviews) * 100);
+    const pct = run.reviews === 0 ? 0 : Math.round((run.annotated / run.reviews) * 100);
 
     return (
         <li>
@@ -210,11 +188,12 @@ function PopulationRow({
                     className={`size-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-90" : ""
                         }`}
                 />
-                <span className="truncate font-medium text-slate-700">{pop.label}</span>
+                <span className="truncate font-medium text-slate-700">{run.prompt}</span>
+                <span className="shrink-0 text-xs text-slate-400 tabular-nums">#{run.runId}</span>
 
                 <span className="ml-auto hidden text-slate-500 tabular-nums sm:inline">
-                    <span className="font-medium text-slate-900">{fmt(pop.annotated)}</span> /{" "}
-                    {fmt(pop.reviews)}
+                    <span className="font-medium text-slate-900">{fmt(run.annotated)}</span> /{" "}
+                    {fmt(run.reviews)}
                 </span>
 
                 <div className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-slate-100 md:block">
@@ -230,92 +209,46 @@ function PopulationRow({
             </button>
 
             {isOpen ? (
-                <div className="space-y-4 border-t border-slate-200/70 bg-slate-50/60 px-3.5 py-3.5">
-                    <div className="space-y-2.5">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            Annotated by model
-                        </p>
+                <div className="space-y-2.5 border-t border-slate-200/70 bg-slate-50/60 px-3.5 py-3.5">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                        Annotated by model
+                    </p>
 
-                        {models.isPending ? (
-                            <p className="text-xs text-slate-400">Loading model coverage…</p>
-                        ) : models.isError ? (
-                            <p className="text-xs text-rose-500">
-                                Couldn&apos;t load model coverage ·{" "}
-                                <button
-                                    type="button"
-                                    onClick={() => models.refetch()}
-                                    className="font-medium underline underline-offset-2 hover:text-rose-600"
-                                >
-                                    Retry
-                                </button>
-                            </p>
-                        ) : models.data.length === 0 ? (
-                            <p className="text-xs text-slate-400">No model annotations yet.</p>
-                        ) : (
-                            models.data.map((pm) => {
-                                const modelPct =
-                                    pop.reviews === 0 ? 0 : Math.round((pm.annotated / pop.reviews) * 100);
-                                return (
-                                    <div key={pm.model} className="flex items-center gap-3 text-sm">
-                                        <span className="w-40 shrink-0 truncate text-slate-600">{pm.model}</span>
-                                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200/70">
-                                            <div
-                                                className="h-full rounded-full bg-slate-400"
-                                                style={{ width: `${modelPct}%` }}
-                                            />
-                                        </div>
-                                        <span className="w-16 text-right text-slate-700 tabular-nums">
-                                            {fmt(pm.annotated)}
-                                        </span>
+                    {models.isPending ? (
+                        <p className="text-xs text-slate-400">Loading model coverage…</p>
+                    ) : models.isError ? (
+                        <p className="text-xs text-rose-500">
+                            Couldn&apos;t load model coverage ·{" "}
+                            <button
+                                type="button"
+                                onClick={() => models.refetch()}
+                                className="font-medium underline underline-offset-2 hover:text-rose-600"
+                            >
+                                Retry
+                            </button>
+                        </p>
+                    ) : models.data.length === 0 ? (
+                        <p className="text-xs text-slate-400">No model annotations yet.</p>
+                    ) : (
+                        models.data.map((pm) => {
+                            const modelPct =
+                                run.reviews === 0 ? 0 : Math.round((pm.annotated / run.reviews) * 100);
+                            return (
+                                <div key={pm.model} className="flex items-center gap-3 text-sm">
+                                    <span className="w-40 shrink-0 truncate text-slate-600">{pm.model}</span>
+                                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200/70">
+                                        <div
+                                            className="h-full rounded-full bg-slate-400"
+                                            style={{ width: `${modelPct}%` }}
+                                        />
                                     </div>
-                                );
-                            })
-                        )}
-                    </div>
-
-                    <div className="space-y-2.5">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            Panel members
-                        </p>
-
-                        {panel.isPending ? (
-                            <p className="text-xs text-slate-400">Loading panel…</p>
-                        ) : panel.isError ? (
-                            <p className="text-xs text-rose-500">
-                                Couldn&apos;t load panel ·{" "}
-                                <button
-                                    type="button"
-                                    onClick={() => panel.refetch()}
-                                    className="font-medium underline underline-offset-2 hover:text-rose-600"
-                                >
-                                    Retry
-                                </button>
-                            </p>
-                        ) : panel.data.length === 0 ? (
-                            <p className="text-xs text-slate-400">No panel members.</p>
-                        ) : (
-                            <div className="flex flex-wrap gap-1.5">
-                                {panel.data.map((m, i) => {
-                                    const isHuman = m.kind === "human";
-                                    return (
-                                        <span
-                                            key={`${m.kind}:${m.label}:${i}`}
-                                            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600"
-                                        >
-                                            <span
-                                                className={`size-1.5 shrink-0 rounded-full ${isHuman ? "bg-sky-500" : "bg-violet-500"
-                                                    }`}
-                                            />
-                                            {m.label}
-                                            <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                                                {m.kind}
-                                            </span>
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
+                                    <span className="w-16 text-right text-slate-700 tabular-nums">
+                                        {fmt(pm.annotated)}
+                                    </span>
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
             ) : null}
         </li>

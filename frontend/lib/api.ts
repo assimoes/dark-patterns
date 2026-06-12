@@ -72,6 +72,9 @@ export const api = {
             `/api/games/${gameId}/populations/${populationId}/models`,
         ),
 
+    gameRunModels: (gameId: string, runId: number) =>
+        fetchJSON<ModelStat[]>(`/api/games/${gameId}/runs/${runId}/models`),
+
     // GET /api/populations/{populationId}/panel — the annotators on a population.
     populationPanel: (populationId: string) =>
         fetchJSON<PanelMember[]>(`/api/populations/${populationId}/panel`),
