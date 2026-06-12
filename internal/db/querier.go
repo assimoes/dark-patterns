@@ -10,6 +10,11 @@ import (
 
 type Querier interface {
 	AddIndividual(ctx context.Context, arg AddIndividualParams) error
+	// The candidate pool for a sample: every completed review in the population, tagged with its stratum.
+	// A review is classified by the panel's per-pattern votes: flagged_majority if any pattern reached a
+	// majority Present (n_present*2 > n_total), else flagged_split if any pattern had Present votes without
+	// a majority (the panel disagreed), else silent (no pattern got a single Present vote).
+	ClassifyReviewsForSampling(ctx context.Context, arg ClassifyReviewsForSamplingParams) ([]ClassifyReviewsForSamplingRow, error)
 	// gold run: how many patterns are decided per review, to show progress on the worklist.
 	CountAdjudicationsPerReview(ctx context.Context, runID int32) ([]CountAdjudicationsPerReviewRow, error)
 	CountArtifactsBySource(ctx context.Context, arg CountArtifactsBySourceParams) (int64, error)
@@ -28,11 +33,16 @@ type Querier interface {
 	GameReviewTotals(ctx context.Context) ([]GameReviewTotalsRow, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
+	// The most recent gold run for a population. Adjudication samples and decisions write into one gold
+	// run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
+	GetGoldRunForPopulation(ctx context.Context, populationID int32) (int32, error)
 	// The gold run that adjudications for this review's population are written to. There is one gold
 	// run per population; pick the most recent so revisits land on the same row the queue was built from.
 	GetGoldRunForReview(ctx context.Context, individualID int64) (int32, error)
 	GetLLMAnnotatorByModel(ctx context.Context, modelID *int32) (Annotator, error)
 	GetLatestPrompt(ctx context.Context, name string) (Prompt, error)
+	// The most recent sample drawn for a panel run, to reopen its queue.
+	GetLatestSampleForRun(ctx context.Context, panelRunID int32) (AdjudicationSample, error)
 	GetMesoPatternCodes(ctx context.Context, version int32) ([]GetMesoPatternCodesRow, error)
 	GetModelBySlug(ctx context.Context, slug string) (Model, error)
 	// The llm panel run whose votes seed a decision on this review. One panel per population; pick the
@@ -40,18 +50,27 @@ type Querier interface {
 	GetPanelRunForReview(ctx context.Context, individualID int64) (int32, error)
 	// The panel's verdict for one (run, individual, pattern)
 	GetPanelVoteForCell(ctx context.Context, arg GetPanelVoteForCellParams) (GetPanelVoteForCellRow, error)
-	// Resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id for adjudication.
-	GetPatternIDByCode(ctx context.Context, code string) (int32, error)
+	// Resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id, within a taxonomy
+	// version. Code is unique only per (code, version), so the version is required or the wrong version's
+	// id comes back — which would make a saved adjudication unreadable against the run's actual taxonomy.
+	GetPatternIDByCode(ctx context.Context, arg GetPatternIDByCodeParams) (int32, error)
 	// One population row by id, for the population/run detail headers (modality, description, created_at).
 	GetPopulation(ctx context.Context, id int32) (GetPopulationRow, error)
 	GetPrompt(ctx context.Context, id int32) (Prompt, error)
 	GetPromptByNameVersion(ctx context.Context, arg GetPromptByNameVersionParams) (Prompt, error)
+	// The review header for the auditor/blind views: the body to render plus the vote, language and game.
+	// One query so an endpoint needs a single round-trip for everything that isn't panel data.
+	GetReviewMeta(ctx context.Context, individualID int64) (GetReviewMetaRow, error)
 	// The review body to render for the auditor
 	GetReviewText(ctx context.Context, individualID int64) (string, error)
 	GetRun(ctx context.Context, id int32) (Run, error)
 	GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error)
 	// text-specific query
 	GetTextReviewForIndividual(ctx context.Context, id int64) (GetTextReviewForIndividualRow, error)
+	// The sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
+	InsertAdjudicationSample(ctx context.Context, arg InsertAdjudicationSampleParams) (int64, error)
+	// One frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
+	InsertAdjudicationSampleItem(ctx context.Context, arg InsertAdjudicationSampleItemParams) error
 	InsertAnnotationPattern(ctx context.Context, arg InsertAnnotationPatternParams) error
 	// Register a game so it appears on the dashboard list and can be scraped.
 	InsertGameDisplay(ctx context.Context, arg InsertGameDisplayParams) (GameDisplay, error)
@@ -110,6 +129,10 @@ type Querier interface {
 	// One row per run with its population's modality as a human label and its creation time.
 	// annotator_ids is the panel the run pinned; members are resolved separately per run.
 	ListRunsForDashboard(ctx context.Context) ([]ListRunsForDashboardRow, error)
+	// The queue for a sample: each selected review with the text/vote/language to render and a `decided`
+	// count of how many of its patterns already have a gold label in the sample's gold run. Joining the
+	// per-review adjudication count in SQL keeps the worklist's progress one query, not N.
+	ListSampleReviews(ctx context.Context, sampleID int64) ([]ListSampleReviewsRow, error)
 	// The full MESO codebook for a version: code, name, definition, and the family it sits under.
 	ListTaxonomy(ctx context.Context, version int32) ([]ListTaxonomyRow, error)
 	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator

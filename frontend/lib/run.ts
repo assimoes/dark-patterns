@@ -12,7 +12,7 @@ export const panelModels: PanelModel[] = [
 export type PresentDetection = { code: string; modelId: string; evidence: string };
 
 export type AdjReview = {
-    id: number;
+    id: string;
     gameId: string;
     votedUp: boolean;
     language: string;
@@ -26,7 +26,7 @@ const det = (code: string, evidence: string, ...modelIds: string[]): PresentDete
 
 const reviews: AdjReview[] = [
     {
-        id: 4821,
+        id: "4821",
         gameId: "archeage",
         votedUp: false,
         language: "english",
@@ -64,7 +64,7 @@ const reviews: AdjReview[] = [
         ],
     },
     {
-        id: 4822,
+        id: "4822",
         gameId: "cod",
         votedUp: true,
         language: "english",
@@ -82,7 +82,7 @@ const reviews: AdjReview[] = [
         ],
     },
     {
-        id: 4823,
+        id: "4823",
         gameId: "poe",
         votedUp: false,
         language: "english",
@@ -120,7 +120,7 @@ const reviews: AdjReview[] = [
         ],
     },
     {
-        id: 4824,
+        id: "4824",
         gameId: "wot",
         votedUp: true,
         language: "english",

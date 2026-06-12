@@ -65,6 +65,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/runs/{runId}", s.runDetail)
 	mux.HandleFunc("GET /api/games", s.listGames)
 
+	mux.HandleFunc("POST /api/adjudication-samples", s.createAdjudicationSample)
+	mux.HandleFunc("GET /api/runs/{runId}/adjudication-sample", s.runAdjudicationSample)
+	mux.HandleFunc("GET /api/reviews/{reviewId}/adjudication", s.reviewAdjudication)
+	mux.HandleFunc("GET /api/reviews/{reviewId}/blind", s.reviewBlind)
+
 	return s.withCORS(mux)
 }
 

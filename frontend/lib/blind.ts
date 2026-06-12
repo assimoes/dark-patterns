@@ -2,7 +2,7 @@ import { adjRun } from "@/lib/run";
 
 // A blind review is the panel-free projection of a run review
 export type BlindReview = {
-    id: number;
+    id: string;
     gameId: string;
     votedUp: boolean;
     language: string;

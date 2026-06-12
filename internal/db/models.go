@@ -22,6 +22,24 @@ type Adjudication struct {
 	DecidedAt               pgtype.Timestamptz `json:"decided_at"`
 }
 
+type AdjudicationSample struct {
+	ID         int64              `json:"id"`
+	PanelRunID int32              `json:"panel_run_id"`
+	GoldRunID  int32              `json:"gold_run_id"`
+	Strategy   string             `json:"strategy"`
+	Seed       int64              `json:"seed"`
+	Params     json.RawMessage    `json:"params"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type AdjudicationSampleItem struct {
+	SampleID       int64   `json:"sample_id"`
+	IndividualID   int64   `json:"individual_id"`
+	ExternalGameID int32   `json:"external_game_id"`
+	Stratum        string  `json:"stratum"`
+	SelectionProb  float64 `json:"selection_prob"`
+}
+
 type Annotation struct {
 	ID           int64              `json:"id"`
 	RunID        int32              `json:"run_id"`

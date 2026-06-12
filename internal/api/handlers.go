@@ -192,15 +192,31 @@ func (s *Server) reviewDecisions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	goldRun, err := s.q.GetGoldRunForReview(ctx, individualID)
+	// Resolve the panel run the auditor is actually working under — the ?run= the screen sends — and
+	// derive the gold run and taxonomy version from IT, not from "newest panel run". A population can
+	// hold several panel runs of different taxonomy versions; resolving independently here would write
+	// the decisions against a different run's gold run and pattern-version ids than the read maps with,
+	// so the saved labels would never show up on revisit.
+	panelRun, err := s.resolvePanelRun(ctx, r, individualID)
 	if err != nil {
-		s.writeError(w, http.StatusNotFound, "no gold run for this review", err)
+		s.writeError(w, http.StatusNotFound, "no panel run for this review", err)
 		return
 	}
 
-	panelRun, err := s.q.GetPanelRunForReview(ctx, individualID)
+	panelRunRow, err := s.q.GetRun(ctx, panelRun)
 	if err != nil {
-		s.writeError(w, http.StatusNotFound, "no panel run for this review", err)
+		s.writeError(w, http.StatusInternalServerError, "load panel run", err)
+		return
+	}
+
+	taxVersion := int32(1)
+	if panelRunRow.TaxonomyVersion != nil {
+		taxVersion = *panelRunRow.TaxonomyVersion
+	}
+
+	goldRun, err := s.q.GetGoldRunForPopulation(ctx, panelRunRow.PopulationID)
+	if err != nil {
+		s.writeError(w, http.StatusNotFound, "no gold run for this review", err)
 		return
 	}
 
@@ -220,7 +236,7 @@ func (s *Server) reviewDecisions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		patternID, err := q.GetPatternIDByCode(ctx, code)
+		patternID, err := q.GetPatternIDByCode(ctx, db.GetPatternIDByCodeParams{Code: code, Version: taxVersion})
 		if err != nil {
 			s.writeError(w, http.StatusBadRequest, "unknown pattern code "+code, err)
 			return

@@ -1,5 +1,7 @@
+"use client";
+
 import { ThumbsDown, ThumbsUp } from "lucide-react";
-import { gameById } from "@/lib/types";
+import { useDashboard } from "@/hooks/useDashboard";
 import { type Segment } from "@/lib/adjudication";
 import type { AdjReview } from "@/lib/run";
 
@@ -14,14 +16,20 @@ export function ReviewPane({
     hovered: string | null;
     onHover: (code: string | null) => void;
 }) {
-    const g = gameById(review.gameId);
+    // Resolve the game from the live dashboard games (keyed by external game id), not the static mock
+    // list — a real review's gameId is a real external id the mock never knew, so the old static lookup
+    // fell back to its first entry ("World of Tanks") for every review.
+    const dashboard = useDashboard();
+    const g = dashboard.data?.games.find((x) => x.id === review.gameId);
+    const color = g?.color ?? "#94a3b8";
+    const name = g?.name ?? review.gameId;
 
     return (
         <div className="rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm ring-1 ring-slate-900/[0.02] lg:sticky lg:top-6">
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-4">
                 <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <span className="size-2.5 rounded-full" style={{ backgroundColor: g.color }} />
-                    {g.name}
+                    <span className="size-2.5 rounded-full" style={{ backgroundColor: color }} />
+                    {name}
                 </span>
                 <span
                     title="The review author's own Steam rating"

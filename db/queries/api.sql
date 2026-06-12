@@ -111,8 +111,10 @@ HAVING count(*) * 2 > (
 ORDER BY t.code;
  
 -- name: GetPatternIDByCode :one
--- Resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id for adjudication.
-SELECT id FROM taxonomy_meso_levels WHERE code = sqlc.arg(code);
+-- Resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id, within a taxonomy
+-- version. Code is unique only per (code, version), so the version is required or the wrong version's
+-- id comes back — which would make a saved adjudication unreadable against the run's actual taxonomy.
+SELECT id FROM taxonomy_meso_levels WHERE code = sqlc.arg(code) AND version = sqlc.arg(version);
  
 -- name: GetGoldRunForReview :one
 -- The gold run that adjudications for this review's population are written to. There is one gold
@@ -305,10 +307,99 @@ WHERE a.external_game_id = sqlc.arg(external_game_id)
 GROUP BY m.name
 ORDER BY annotated DESC, m.name;
 
+-- name: GetReviewMeta :one
+-- The review header for the auditor/blind views: the body to render plus the vote, language and game.
+-- One query so an endpoint needs a single round-trip for everything that isn't panel data.
+SELECT td.body, td.voted_up, td.lang, a.external_game_id
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN text_review_details td ON td.artifact_id = a.id
+WHERE i.id = sqlc.arg(individual_id);
+
+-- name: GetGoldRunForPopulation :one
+-- The most recent gold run for a population. Adjudication samples and decisions write into one gold
+-- run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
+SELECT id
+FROM runs
+WHERE population_id = sqlc.arg(population_id)
+    AND run_type = 'gold'
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: ClassifyReviewsForSampling :many
+-- The candidate pool for a sample: every completed review in the population, tagged with its stratum.
+-- A review is classified by the panel's per-pattern votes: flagged_majority if any pattern reached a
+-- majority Present (n_present*2 > n_total), else flagged_split if any pattern had Present votes without
+-- a majority (the panel disagreed), else silent (no pattern got a single Present vote).
+WITH completed AS (
+    SELECT an.individual_id, count(*)::int AS n_total
+    FROM annotations an WHERE an.run_id = sqlc.arg(panel_run_id) AND an.status = 'completed'
+    GROUP BY an.individual_id
+),
+cell AS (
+    SELECT an.individual_id, ap.pattern_id, count(*)::int AS n_present
+    FROM annotations an JOIN annotation_patterns ap ON ap.annotation_id = an.id
+    WHERE an.run_id = sqlc.arg(panel_run_id) AND an.status = 'completed'
+    GROUP BY an.individual_id, ap.pattern_id
+),
+verdict AS (
+    SELECT c.individual_id,
+        bool_or(c.n_present * 2 > t.n_total) AS any_majority,
+        bool_or(c.n_present > 0 AND c.n_present * 2 <= t.n_total) AS any_split
+    FROM cell c JOIN completed t ON t.individual_id = c.individual_id
+    GROUP BY c.individual_id
+)
+SELECT i.id AS individual_id, a.external_game_id,
+    (CASE WHEN COALESCE(v.any_majority, false) THEN 'flagged_majority'
+          WHEN COALESCE(v.any_split, false) THEN 'flagged_split'
+          ELSE 'silent' END)::text AS stratum
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN completed t ON t.individual_id = i.id
+LEFT JOIN verdict v ON v.individual_id = i.id
+WHERE i.population_id = sqlc.arg(population_id)
+ORDER BY a.external_game_id, i.id;
+ 
+
+-- name: InsertAdjudicationSample :one
+-- The sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
+INSERT INTO adjudication_samples (panel_run_id, gold_run_id, strategy, seed, params)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id;
+ 
+-- name: InsertAdjudicationSampleItem :exec
+-- One frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
+INSERT INTO adjudication_sample_items (sample_id, individual_id, external_game_id, stratum, selection_prob)
+VALUES ($1, $2, $3, $4, $5);
+ 
 -- name: GetLatestSampleForRun :one
 -- The most recent sample drawn for a panel run, to reopen its queue.
--- SELECT id, panel_run_id, gold_run_id, strategy, seed, params, created_at
--- FROM adjudication_samples
--- WHERE panel_run_id = sqlc.arg(panel_run_id)
--- ORDER BY created_at DESC
--- LIMIT 1;
+SELECT id, panel_run_id, gold_run_id, strategy, seed, params, created_at
+FROM adjudication_samples
+WHERE panel_run_id = sqlc.arg(panel_run_id)
+ORDER BY created_at DESC
+LIMIT 1;
+ 
+-- name: ListSampleReviews :many
+-- The queue for a sample: each selected review with the text/vote/language to render and a `decided`
+-- count of how many of its patterns already have a gold label in the sample's gold run. Joining the
+-- per-review adjudication count in SQL keeps the worklist's progress one query, not N.
+SELECT
+    it.individual_id,
+    it.external_game_id,
+    it.stratum,
+    td.voted_up,
+    td.lang,
+    (
+        SELECT count(*)::int
+        FROM adjudications adj
+        WHERE adj.run_id = s.gold_run_id
+            AND adj.individual_id = it.individual_id
+    ) AS decided
+FROM adjudication_sample_items it
+JOIN adjudication_samples s ON s.id = it.sample_id
+JOIN individuals i ON i.id = it.individual_id
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN text_review_details td ON td.artifact_id = a.id
+WHERE it.sample_id = sqlc.arg(sample_id)
+ORDER BY it.external_game_id, it.individual_id;

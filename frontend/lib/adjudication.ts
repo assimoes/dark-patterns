@@ -1,5 +1,5 @@
 import { codebook, type Pattern } from "@/lib/codebook";
-import { panelModels, type AdjReview } from "@/lib/run";
+import { panelModels, type AdjReview, type PanelModel } from "@/lib/run";
 import { assignColors, splitBySpans, type Segment } from "@/lib/highlight";
 
 import type { Decision } from "@/lib/types";
@@ -21,10 +21,12 @@ export type PatternVote = {
     evidence: string[]; // unique cited spans, present votes only
 };
 
-// Tally the 4 panel votes for every pattern in a review.
-export function patternVotes(review: AdjReview): PatternVote[] {
+// Tally the panel votes for every pattern in a review. `models` defaults to the
+// static panel; the live screens pass the real panel from the API response, whose
+// model ids are the model names the detections are keyed by, so the columns line up.
+export function patternVotes(review: AdjReview, models: PanelModel[] = panelModels): PatternVote[] {
     return codebook.map((pattern) => {
-        const votes: Vote[] = panelModels.map((m) => {
+        const votes: Vote[] = models.map((m) => {
             const d = review.present.find((x) => x.code === pattern.code && x.modelId === m.id);
             return { modelId: m.id, short: m.short, present: Boolean(d), evidence: d?.evidence };
         });
