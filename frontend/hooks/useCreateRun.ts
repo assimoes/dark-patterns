@@ -10,7 +10,7 @@ export function useCreateRun() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (body: CreateRunInput) => api.createRun(body),
+        mutationFn: (body: CreateRunInput) => api.operations.createRun(body),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: qk.dashboard });
         },

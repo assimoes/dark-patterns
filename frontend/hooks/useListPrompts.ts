@@ -8,6 +8,6 @@ import { qk } from "@/lib/queryKeys";
 export function useListPrompts() {
     return useQuery({
         queryKey: qk.prompts,
-        queryFn: () => api.listPrompts(),
+        queryFn: () => api.browse.listPrompts(),
     });
 }

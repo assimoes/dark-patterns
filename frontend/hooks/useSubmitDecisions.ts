@@ -10,7 +10,7 @@ export function useSubmitDecisions(reviewId: string, runId: string) {
 
     return useMutation({
         mutationFn: (decisions: Record<string, Decision>) =>
-            api.submitDecisions(reviewId, runId, decisions),
+            api.adjudication.submitDecisions(reviewId, runId, decisions),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: qk.dashboard })
         },

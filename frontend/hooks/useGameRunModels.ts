@@ -11,7 +11,7 @@ export function useGameRunModels(
 ) {
     return useQuery({
         queryKey: qk.gameRunModels(gameId, runId),
-        queryFn: () => api.gameRunModels(gameId, runId),
+        queryFn: () => api.coverage.gameRunModels(gameId, runId),
         enabled,
     });
 }

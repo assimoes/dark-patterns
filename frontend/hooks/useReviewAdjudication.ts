@@ -12,7 +12,7 @@ export function useReviewAdjudication(
 ) {
     return useQuery({
         queryKey: qk.reviewAdjudication(reviewId, panelRunId),
-        queryFn: () => api.reviewAdjudication(reviewId, panelRunId),
+        queryFn: () => api.adjudication.reviewAdjudication(reviewId, panelRunId),
         enabled,
     });
 }

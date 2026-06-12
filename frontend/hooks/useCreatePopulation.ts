@@ -10,7 +10,7 @@ export function useCreatePopulation() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (body: CreatePopulationInput) => api.createPopulation(body),
+        mutationFn: (body: CreatePopulationInput) => api.operations.createPopulation(body),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: qk.dashboard });
         },

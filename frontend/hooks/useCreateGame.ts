@@ -7,7 +7,7 @@ export function useCreateGame() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (body: CreateGameInput) => api.createGame(body),
+        mutationFn: (body: CreateGameInput) => api.operations.createGame(body),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: qk.dashboard })
         }

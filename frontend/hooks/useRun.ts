@@ -8,7 +8,7 @@ import { qk } from "@/lib/queryKeys";
 export function useRun(id: number | null) {
     return useQuery({
         queryKey: qk.run(id ?? 0),
-        queryFn: () => api.getRun(id as number),
+        queryFn: () => api.browse.getRun(id as number),
         enabled: id !== null,
     });
 }

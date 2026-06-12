@@ -8,7 +8,7 @@ import { qk } from "@/lib/queryKeys";
 export function useReviewBlind(reviewId: string, enabled: boolean) {
     return useQuery({
         queryKey: qk.reviewBlind(reviewId),
-        queryFn: () => api.reviewBlind(reviewId),
+        queryFn: () => api.adjudication.reviewBlind(reviewId),
         enabled,
     });
 }

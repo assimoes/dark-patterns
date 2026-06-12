@@ -8,6 +8,6 @@ import { qk } from "@/lib/queryKeys";
 export function useListPopulations() {
     return useQuery({
         queryKey: qk.populations,
-        queryFn: () => api.listPopulations(),
+        queryFn: () => api.browse.listPopulations(),
     });
 }

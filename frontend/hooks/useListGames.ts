@@ -8,6 +8,6 @@ import { qk } from "@/lib/queryKeys";
 export function useListGames() {
     return useQuery({
         queryKey: qk.games,
-        queryFn: () => api.listGames(),
+        queryFn: () => api.browse.listGames(),
     });
 }

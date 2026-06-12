@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 export function useDashboard() {
     return useQuery({
         queryKey: qk.dashboard,
-        queryFn: () => api.dashboard(),
+        queryFn: () => api.dashboard.dashboard(),
     })
 }
 

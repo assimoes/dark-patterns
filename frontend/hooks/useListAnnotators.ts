@@ -8,6 +8,6 @@ import { qk } from "@/lib/queryKeys";
 export function useListAnnotators() {
     return useQuery({
         queryKey: qk.annotators,
-        queryFn: () => api.listAnnotators(),
+        queryFn: () => api.browse.listAnnotators(),
     });
 }

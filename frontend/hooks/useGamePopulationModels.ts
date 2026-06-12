@@ -14,7 +14,7 @@ export function useGamePopulationModels(
 ) {
     return useQuery({
         queryKey: qk.gamePopulationModels(gameId, populationId),
-        queryFn: () => api.gamePopulationModels(gameId, populationId),
+        queryFn: () => api.coverage.gamePopulationModels(gameId, populationId),
         enabled,
     });
 }

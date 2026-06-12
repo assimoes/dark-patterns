@@ -8,7 +8,7 @@ import { qk } from "@/lib/queryKeys";
 export function usePopulation(id: number | null) {
     return useQuery({
         queryKey: qk.population(id ?? 0),
-        queryFn: () => api.getPopulation(id as number),
+        queryFn: () => api.browse.getPopulation(id as number),
         enabled: id !== null,
     });
 }

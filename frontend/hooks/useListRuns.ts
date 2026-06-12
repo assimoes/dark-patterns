@@ -8,6 +8,6 @@ import { qk } from "@/lib/queryKeys";
 export function useListRuns() {
     return useQuery({
         queryKey: qk.runs,
-        queryFn: () => api.listRuns(),
+        queryFn: () => api.browse.listRuns(),
     });
 }

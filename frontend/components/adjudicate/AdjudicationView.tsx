@@ -19,7 +19,7 @@ import {
     type Decision,
 } from "@/lib/adjudication";
 import { mapAdjudicationReview } from "@/lib/adjReview";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/utils";
 import { useRunAdjudicationSample } from "@/hooks/useRunAdjudicationSample";
 import { useReviewAdjudication } from "@/hooks/useReviewAdjudication";
 import { useSubmitDecisions } from "@/hooks/useSubmitDecisions";
