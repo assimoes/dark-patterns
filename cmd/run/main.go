@@ -1,3 +1,5 @@
+// Command run creates an annotation run row pinning a population, prompt, taxonomy version and the
+// panel of annotators. validates all of it exists first so a run never points at nothing.
 package main
 
 import (
@@ -101,6 +103,8 @@ func main() {
 	)
 }
 
+// validate checks the run actually makes sense before we insert: annotators exist and are llms,
+// the population has individuals, the prompt exists with a supported modality, taxonomy has codes.
 func validate(ctx context.Context, q *db.Queries, annotatorIDs []int32, populationID, promptID, taxVersion int32) error {
 
 	// ensure annotators exist and are llms
@@ -164,6 +168,8 @@ func validate(ctx context.Context, q *db.Queries, annotatorIDs []int32, populati
 	return nil
 }
 
+// parseAnnotatorsIDs splits the comma list of annotator ids into int32s, skipping blanks. empty
+// string means no annotators.
 func parseAnnotatorsIDs(csv string) ([]int32, error) {
 	csv = strings.TrimSpace(csv)
 

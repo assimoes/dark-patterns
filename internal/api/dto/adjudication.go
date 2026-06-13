@@ -1,0 +1,77 @@
+package dto
+
+// DecisionsRequest is the body of POST /api/reviews/{reviewId}/decisions: pattern code -> "present" |
+// "absent". Keying by code, not row id, keeps the frontend free of database ids.
+type DecisionsRequest struct {
+	Decisions map[string]string `json:"decisions"`
+}
+
+// CreateSampleRequest is the body of POST /api/adjudication-samples.
+type CreateSampleRequest struct {
+	PanelRunID      int32  `json:"panelRunId"`
+	FlaggedMajority int    `json:"flaggedMajority"`
+	FlaggedSplit    int    `json:"flaggedSplit"`
+	Silent          int    `json:"silent"`
+	Seed            *int64 `json:"seed"`
+}
+
+// StratumCounts is how many reviews were drawn into each stratum (min(target, stratum size)).
+type StratumCounts struct {
+	FlaggedMajority int `json:"flagged_majority"`
+	FlaggedSplit    int `json:"flagged_split"`
+	Silent          int `json:"silent"`
+}
+
+// CreateSampleResponse is the 201 body of POST /api/adjudication-samples.
+type CreateSampleResponse struct {
+	SampleID  int64         `json:"sampleId"`
+	GoldRunID int32         `json:"goldRunId"`
+	Seed      int64         `json:"seed"`
+	Counts    StratumCounts `json:"counts"`
+}
+
+// SampleReview is one review in a persisted samples queue, with its stratum and decided-pattern count.
+type SampleReview struct {
+	ID       string `json:"id"`
+	GameID   string `json:"gameId"`
+	Stratum  string `json:"stratum"`
+	VotedUp  bool   `json:"votedUp"`
+	Language string `json:"language"`
+	Decided  int    `json:"decided"`
+}
+
+// SampleResponse is the body of GET /api/runs/{runId}/adjudication-sample.
+type SampleResponse struct {
+	SampleID  int64          `json:"sampleId"`
+	GoldRunID int32          `json:"goldRunId"`
+	Reviews   []SampleReview `json:"reviews"`
+}
+
+// Detection is one panel models positive call on a pattern, with its own evidence and explanation.
+type Detection struct {
+	PatternCode string `json:"patternCode"`
+	Model       string `json:"model"`
+	Evidence    string `json:"evidence"`
+	Explanation string `json:"explanation"`
+}
+
+// AdjudicationReview is the full review an auditor sees.
+type AdjudicationReview struct {
+	ID          string          `json:"id"`
+	GameID      string          `json:"gameId"`
+	VotedUp     bool            `json:"votedUp"`
+	Language    string          `json:"language"`
+	Body        string          `json:"body"`
+	PanelModels []string        `json:"panelModels"`
+	Detections  []Detection     `json:"detections"`
+	GoldLabels  map[string]bool `json:"goldLabels"`
+}
+
+// BlindReview is the panel-free projection for a blind pass.
+type BlindReview struct {
+	ID       string `json:"id"`
+	GameID   string `json:"gameId"`
+	VotedUp  bool   `json:"votedUp"`
+	Language string `json:"language"`
+	Body     string `json:"body"`
+}

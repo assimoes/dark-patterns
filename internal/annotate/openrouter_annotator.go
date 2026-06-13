@@ -17,6 +17,7 @@ const (
 	maxBackoff    = 30 * time.Second
 )
 
+// OpenRouterAnnotator talks to the OpenRouter chat API. One per model slug. Retries on 429/5xx.
 type OpenRouterAnnotator struct {
 	httpClient    *http.Client
 	apiKey        string
@@ -29,26 +30,31 @@ type OpenRouterAnnotator struct {
 	backoffBase   time.Duration
 }
 
+// ORAOption tweaks an OpenRouterAnnotator at construction.
 type ORAOption func(*OpenRouterAnnotator)
 
+// WithHTTPClient swaps the http client, handy for tests.
 func WithHTTPClient(h *http.Client) ORAOption {
 	return func(a *OpenRouterAnnotator) {
 		a.httpClient = h
 	}
 }
 
+// WithBaseURL points at a different endpoint, e.g. a stub server in tests.
 func WithBaseURL(url string) ORAOption {
 	return func(a *OpenRouterAnnotator) {
 		a.baseURL = url
 	}
 }
 
+// WithClientVersion sets what gets recorded as the client version in provenance.
 func WithClientVersion(version string) ORAOption {
 	return func(a *OpenRouterAnnotator) {
 		a.clientVersion = version
 	}
 }
 
+// WithAttribution sets the HTTP-Referer and X-Title headers OpenRouter uses for attribution.
 func WithAttribution(referer, title string) ORAOption {
 	return func(a *OpenRouterAnnotator) {
 		a.referer = referer
@@ -56,12 +62,14 @@ func WithAttribution(referer, title string) ORAOption {
 	}
 }
 
+// WithMaxRetries caps how many times a retryable call gets re-tried.
 func WithMaxRetries(maxRetries int) ORAOption {
 	return func(a *OpenRouterAnnotator) {
 		a.maxRetries = maxRetries
 	}
 }
 
+// NewOpenRouterAnnotator builds one with sane defaults, then applies opts.
 func NewOpenRouterAnnotator(apiKey, slug string, opts ...ORAOption) *OpenRouterAnnotator {
 	a := &OpenRouterAnnotator{
 		httpClient:    &http.Client{Timeout: 90 * time.Second},
@@ -80,6 +88,7 @@ func NewOpenRouterAnnotator(apiKey, slug string, opts ...ORAOption) *OpenRouterA
 	return a
 }
 
+// Identity is the provenance for this annotator: provider, model slug, client version.
 func (a *OpenRouterAnnotator) Identity() RunIdentity {
 	return RunIdentity{
 		Provider:      "openrouter-annotator",
@@ -88,6 +97,8 @@ func (a *OpenRouterAnnotator) Identity() RunIdentity {
 	}
 }
 
+// Annotate sends the system and user messages at temperature 0, strips any json fence off the
+// reply, and returns the raw body. Retries live in call.
 func (a *OpenRouterAnnotator) Annotate(ctx context.Context, in Input) (Output, error) {
 
 	body := oraRequest{
@@ -106,7 +117,7 @@ func (a *OpenRouterAnnotator) Annotate(ctx context.Context, in Input) (Output, e
 
 	res, meta, err := a.call(ctx, payload)
 	if err != nil {
-		// I can return the error safely as it is already retried inside "call"
+		// already retried inside call
 		return Output{}, err
 	}
 
@@ -176,7 +187,7 @@ func (a *OpenRouterAnnotator) try(ctx context.Context, payload []byte) (oraRespo
 	start := time.Now()
 	res, err := a.httpClient.Do(req)
 	if err != nil {
-		// potential transport error. retryable
+		// transport error, retryable
 		return oraResponse{}, ResponseMeta{}, true, err
 	}
 	defer res.Body.Close()
@@ -217,7 +228,7 @@ func (a *OpenRouterAnnotator) backoff(attempt int) time.Duration {
 		return base
 	}
 
-	// jitter the backoff duration
+	// jitter
 	return half + time.Duration(rand.Int64N(int64(half)))
 }
 
@@ -239,15 +250,13 @@ func stripJSONFence(s string) string {
 		return s
 	}
 
-	// strip opening fence
 	s = strings.TrimPrefix(s, "```")
 
-	// strips ```json, etc
+	// drop the ```json (or bare ```) info line
 	if nl := strings.IndexByte(s, '\n'); nl >= 0 {
 		s = s[nl+1:]
 	}
 
-	// strip closing fence
 	s = strings.TrimSuffix(strings.TrimSpace(s), "```")
 
 	return strings.TrimSpace(s)

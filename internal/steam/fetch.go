@@ -1,5 +1,6 @@
 package steam
 
+// FetchOpts is what to ask steam for: which app, language, filter and how many.
 type FetchOpts struct {
 	AppID      string
 	Language   string
@@ -8,6 +9,8 @@ type FetchOpts struct {
 	MaxPerPage int
 }
 
+// normalize fills the blanks so a zero-value FetchOpts still works: language all, recent filter,
+// page size clamped to the steam max.
 func (opts *FetchOpts) normalize() {
 	if opts.Language == "" {
 		opts.Language = "all"
@@ -22,6 +25,7 @@ func (opts *FetchOpts) normalize() {
 	}
 }
 
+// retryable wraps an error we want to back off and try again on, vs a hard fail we give up on.
 type retryable struct {
 	err error
 }

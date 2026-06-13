@@ -1,3 +1,5 @@
+// Command curate creates a population and freezes a stratified sample of reviews into it, so a
+// run always annotates the same fixed set even as new reviews land.
 package main
 
 import (
@@ -13,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// criteria is the population recipe, stored as json on the row so we can see how it was built.
 type criteria struct {
 	Modality        string    `json:"modality"`
 	MinHoursPlayed  int32     `json:"min_hours_played"`

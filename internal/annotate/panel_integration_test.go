@@ -11,8 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// seedPanelRun creates a population + prompt + a run pinning the given annotator_ids (nil => NULL),
-// and returns the loaded run + prompt. Cleans up on test end. Reuses the seeded models/annotators.
+// seedPanelRun makes a population, prompt, and run pinning annotatorIDs (nil => NULL), and returns the run and prompt.
 func seedPanelRun(t *testing.T, pool *pgxpool.Pool, annotatorIDs []int32) (db.Run, db.Prompt) {
 	t.Helper()
 	ctx := context.Background()
@@ -60,7 +59,7 @@ func seedPanelRun(t *testing.T, pool *pgxpool.Pool, annotatorIDs []int32) (db.Ru
 	return run, prompt
 }
 
-// fakeLLMRegistry maps every seeded llm slug to a fake, so SnapshotPanel can resolve each one.
+// fakeLLMRegistry maps every seeded llm slug to a fake so SnapshotPanel can resolve each.
 func fakeLLMRegistry(t *testing.T, pool *pgxpool.Pool) map[string]Annotator {
 	t.Helper()
 	anns, err := db.New(pool).ListLLMAnnotators(context.Background())

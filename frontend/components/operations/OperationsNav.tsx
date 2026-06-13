@@ -21,8 +21,7 @@ export function OperationsNav() {
     return (
         <nav className="flex flex-wrap gap-1.5">
             {tabs.map((tab) => {
-                // Browse marks active for the whole subtree (its list and detail
-                // routes); the write forms match their exact path.
+                // Browse is active for its whole subtree; write forms match their exact path.
                 const active =
                     tab.href === "/operations/browse"
                         ? pathname.startsWith("/operations/browse")

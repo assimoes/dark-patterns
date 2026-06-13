@@ -12,17 +12,13 @@ import {
 } from "@/components/operations/form";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useCreateAdjudicationSample } from "@/hooks/useCreateAdjudicationSample";
-import { ApiError } from "@/lib/api";
+
 import type { CreateSampleInput, Run } from "@/lib/types";
+import { ApiError } from "@/lib/api/utils";
 
-// Operator form: draw a stratified adjudication sample from a panel run. The run
-// is chosen from the dashboard's runs (only those with an llm panel can be
-// sampled); the three per-stratum sizes and an optional seed are typed in. On
-// success the backend's draw — its sample/gold ids, the seed it used, and the
-// realised per-stratum counts — is shown so the operator can reproduce it.
+// operator form: draw a stratified adjudication sample from a panel run. shows the backend's draw on success so it can be reproduced.
 
-// A panel run is one that has at least one llm member. Human-only/gold runs have
-// no panel votes to sample, so they're excluded from the selector.
+// panel run = has at least one llm member; human-only/gold runs have no panel votes, so they're excluded.
 const isPanelRun = (run: Run) => run.members.some((m) => m.kind === "llm");
 
 export default function AdjudicationSamplePage() {
@@ -59,13 +55,13 @@ export default function AdjudicationSamplePage() {
     // Flatten the nested counts so the SuccessPanel renders one row per stratum.
     const result = createSample.data
         ? {
-              sampleId: createSample.data.sampleId,
-              goldRunId: createSample.data.goldRunId,
-              seed: createSample.data.seed,
-              flagged_majority: createSample.data.counts.flagged_majority,
-              flagged_split: createSample.data.counts.flagged_split,
-              silent: createSample.data.counts.silent,
-          }
+            sampleId: createSample.data.sampleId,
+            goldRunId: createSample.data.goldRunId,
+            seed: createSample.data.seed,
+            flagged_majority: createSample.data.counts.flagged_majority,
+            flagged_split: createSample.data.counts.flagged_split,
+            silent: createSample.data.counts.silent,
+        }
         : null;
 
     return (

@@ -1,5 +1,4 @@
-// Maps the API's panel read (AdjudicationReview) onto the AdjReview shape the
-// existing adjudication logic consumes.
+// maps the API panel read (AdjudicationReview) onto the AdjReview shape the adjudication logic uses
 import type { AdjudicationReview, Decision } from "@/lib/types";
 import type { AdjReview, PanelModel, PresentDetection } from "@/lib/run";
 import { codebook } from "@/lib/codebook";
@@ -10,7 +9,7 @@ export type MappedAdjReview = {
     goldDecisions: Record<string, Decision>;
 };
 
-// Derive a short display label from a model name
+// short display label from a model name
 function shortLabel(name: string): string {
     const head = name.split(/[\s/]/)[0] ?? name;
     return head.length > 12 ? head.slice(0, 12) : head || name;

@@ -1,3 +1,5 @@
+// Package steam is a small http client for the steam appreviews api, cursor paging plus retries
+// and backoff on rate limits and 5xx.
 package steam
 
 import (
@@ -20,6 +22,7 @@ const (
 	maxBackoff     = 30 * time.Second
 )
 
+// Client talks to the steam appreviews api.
 type Client struct {
 	httpClient  *http.Client
 	baseURL     string
@@ -30,38 +33,45 @@ type Client struct {
 	logger      *slog.Logger
 }
 
+// Options tweaks a Client at construction, pass them to New.
 type Options func(*Client)
 
+// WithHTTPClient swaps the http client, handy for tests with a stub transport.
 func WithHTTPClient(h *http.Client) Options {
 	return func(c *Client) {
 		c.httpClient = h
 	}
 }
 
+// WithUserAgent sets the User-Agent steam sees. be a good citizen and put contact info in it.
 func WithUserAgent(ua string) Options {
 	return func(c *Client) {
 		c.userAgent = ua
 	}
 }
 
+// WithPageDelay sets the polite pause between pages.
 func WithPageDelay(delay time.Duration) Options {
 	return func(c *Client) {
 		c.pageDelay = delay
 	}
 }
 
+// WithMaxRetries sets how many times a retryable request is retried before giving up.
 func WithMaxRetries(retries int) Options {
 	return func(c *Client) {
 		c.maxRetries = retries
 	}
 }
 
+// WithLogger sets the logger. default discards everything.
 func WithLogger(l *slog.Logger) Options {
 	return func(c *Client) {
 		c.logger = l
 	}
 }
 
+// New builds a Client with sane defaults then applies opts.
 func New(opts ...Options) *Client {
 	c := &Client{
 		httpClient: &http.Client{
@@ -82,6 +92,8 @@ func New(opts ...Options) *Client {
 	return c
 }
 
+// FetchOnce grabs a single page from cursor and hands back the reviews and the next cursor. the
+// scrape worker uses this so it controls paging itself (one page per job).
 func (c *Client) FetchOnce(ctx context.Context, opts FetchOpts, cursor string) (reviews []Review, next string, err error) {
 	opts.normalize()
 	if cursor == "" {
@@ -96,6 +108,8 @@ func (c *Client) FetchOnce(ctx context.Context, opts FetchOpts, cursor string) (
 	return page.Reviews, page.Cursor, nil
 }
 
+// FetchReviews pages through everything and returns it all in one slice. fine for small pulls,
+// for big ones use FetchPage so you can stream instead of buffering the lot.
 func (c *Client) FetchReviews(ctx context.Context, opts FetchOpts) ([]Review, error) {
 	var all []Review
 
@@ -107,6 +121,8 @@ func (c *Client) FetchReviews(ctx context.Context, opts FetchOpts) ([]Review, er
 	return all, err
 }
 
+// FetchPage walks pages from startCursor and calls fn for each one. stops on the MaxReviews cap,
+// an empty page, or a repeated/seen cursor since steam loops the cursor instead of ending cleanly.
 func (c *Client) FetchPage(ctx context.Context,
 	opts FetchOpts, startCursor string, fn func(reviews []Review, next string) error) error {
 
@@ -164,8 +180,7 @@ func (c *Client) FetchPage(ctx context.Context,
 			return nil
 		}
 
-		// sometimes steam returns the same cursor instead of a new one.
-		// this prevents an infinite loop fetching reviews
+		// steam can repeat the cursor; bail to avoid looping forever.
 		if next == "" || next == cursor || seen[next] {
 			return nil
 		}
@@ -184,6 +199,8 @@ func (c *Client) FetchPage(ctx context.Context,
 	}
 }
 
+// fetchPage does one request with the retry loop around it: retryable errors back off and try
+// again up to maxRetries, anything else fails straight away.
 func (c *Client) fetchPage(ctx context.Context, opts FetchOpts, cursor string) (*ReviewResponse, error) {
 	q := url.Values{}
 	q.Set("json", "1")
@@ -228,6 +245,8 @@ func (c *Client) fetchPage(ctx context.Context, opts FetchOpts, cursor string) (
 	}
 }
 
+// try is one shot at the endpoint. 429 comes back retryable with the Retry-After, 5xx retryable,
+// other non-200 is a hard fail. also returns retryable on transport or decode trouble.
 func (c *Client) try(ctx context.Context, endpoint string) (*ReviewResponse, time.Duration, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -265,6 +284,8 @@ func (c *Client) try(ctx context.Context, endpoint string) (*ReviewResponse, tim
 	return &out, 0, nil
 }
 
+// backoff is how long to wait before the next try. honor Retry-After if steam gave one, else
+// exponential off backoffBase capped at maxBackoff with jitter so retries dont sync up.
 func (c *Client) backoff(attempt int, retryAfter time.Duration) time.Duration {
 	if retryAfter > 0 {
 		return retryAfter
@@ -280,6 +301,8 @@ func (c *Client) backoff(attempt int, retryAfter time.Duration) time.Duration {
 	return half + time.Duration(rand.Int64N(int64(half)))
 }
 
+// parseRetryAfter reads a Retry-After header, either a seconds count or an http date. returns 0
+// if its empty or unparseable or already in the past.
 func parseRetryAfter(v string) time.Duration {
 	if v == "" {
 		return 0

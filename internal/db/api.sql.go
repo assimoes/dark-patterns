@@ -172,25 +172,6 @@ func (q *Queries) GetGoldRunForPopulation(ctx context.Context, populationID int3
 	return id, err
 }
 
-const getGoldRunForReview = `-- name: GetGoldRunForReview :one
-SELECT r.id
-FROM runs r
-JOIN individuals i ON i.population_id = r.population_id
-WHERE i.id = $1
-    AND r.run_type = 'gold'
-ORDER BY r.created_at DESC
-LIMIT 1
-`
-
-// The gold run that adjudications for this review's population are written to. There is one gold
-// run per population; pick the most recent so revisits land on the same row the queue was built from.
-func (q *Queries) GetGoldRunForReview(ctx context.Context, individualID int64) (int32, error) {
-	row := q.db.QueryRow(ctx, getGoldRunForReview, individualID)
-	var id int32
-	err := row.Scan(&id)
-	return id, err
-}
-
 const getLatestSampleForRun = `-- name: GetLatestSampleForRun :one
 SELECT id, panel_run_id, gold_run_id, strategy, seed, params, created_at
 FROM adjudication_samples
@@ -625,58 +606,6 @@ func (q *Queries) ListPopulationsForGame(ctx context.Context, externalGameID int
 	return items, nil
 }
 
-const listPresentPatternsForReview = `-- name: ListPresentPatternsForReview :many
-SELECT
-    t.code,
-    t.name
-FROM taxonomy_meso_levels t
-JOIN annotation_patterns ap ON ap.pattern_id = t.id
-JOIN annotations an ON an.id = ap.annotation_id
-WHERE an.run_id = $1
-    AND an.individual_id = $2
-    AND an.status = 'completed'
-GROUP BY t.id, t.code, t.name
-HAVING count(*) * 2 > (
-    SELECT count(*) FROM annotations a2
-    WHERE a2.run_id = $1
-        AND a2.individual_id = $2
-        AND a2.status = 'completed'
-)
-ORDER BY t.code
-`
-
-type ListPresentPatternsForReviewParams struct {
-	RunID        int32 `json:"run_id"`
-	IndividualID int64 `json:"individual_id"`
-}
-
-type ListPresentPatternsForReviewRow struct {
-	Code string `json:"code"`
-	Name string `json:"name"`
-}
-
-// The patterns the panel marked present on one review in one run: a pattern is present when a
-// majority of the completing raters flagged it. Returns the meso code and name for each.
-func (q *Queries) ListPresentPatternsForReview(ctx context.Context, arg ListPresentPatternsForReviewParams) ([]ListPresentPatternsForReviewRow, error) {
-	rows, err := q.db.Query(ctx, listPresentPatternsForReview, arg.RunID, arg.IndividualID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListPresentPatternsForReviewRow{}
-	for rows.Next() {
-		var i ListPresentPatternsForReviewRow
-		if err := rows.Scan(&i.Code, &i.Name); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listPrompts = `-- name: ListPrompts :many
 SELECT id, name, version, modality FROM prompts ORDER BY id
 `
@@ -703,57 +632,6 @@ func (q *Queries) ListPrompts(ctx context.Context) ([]ListPromptsRow, error) {
 			&i.Name,
 			&i.Version,
 			&i.Modality,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRunReviews = `-- name: ListRunReviews :many
-SELECT DISTINCT
-    i.id AS individual_id,
-    a.external_game_id,
-    td.voted_up,
-    td.lang,
-    td.body
-FROM annotations an
-JOIN individuals i ON i.id = an.individual_id
-JOIN artifacts a ON a.id = i.artifact_id
-JOIN text_review_details td ON td.artifact_id = a.id
-WHERE an.run_id = $1
-ORDER BY a.external_game_id, i.id
-`
-
-type ListRunReviewsRow struct {
-	IndividualID   int64  `json:"individual_id"`
-	ExternalGameID int32  `json:"external_game_id"`
-	VotedUp        bool   `json:"voted_up"`
-	Lang           string `json:"lang"`
-	Body           string `json:"body"`
-}
-
-// The adjudication queue for a run: every distinct individual (review) annotated in this run,
-// with the game it belongs to and the review text/vote/language to render. One row per review.
-func (q *Queries) ListRunReviews(ctx context.Context, runID int32) ([]ListRunReviewsRow, error) {
-	rows, err := q.db.Query(ctx, listRunReviews, runID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListRunReviewsRow{}
-	for rows.Next() {
-		var i ListRunReviewsRow
-		if err := rows.Scan(
-			&i.IndividualID,
-			&i.ExternalGameID,
-			&i.VotedUp,
-			&i.Lang,
-			&i.Body,
 		); err != nil {
 			return nil, err
 		}
@@ -921,49 +799,6 @@ func (q *Queries) ListSampleReviews(ctx context.Context, sampleID int64) ([]List
 			&i.Lang,
 			&i.Decided,
 		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const modelStatsForGame = `-- name: ModelStatsForGame :many
-SELECT
-    m.name AS model,
-    count(*)::int AS annotated
-FROM annotations an
-JOIN individuals i ON i.id = an.individual_id
-JOIN artifacts a ON a.id = i.artifact_id
-JOIN annotators ann ON ann.id = an.annotator_id
-JOIN models m ON m.id = ann.model_id
-WHERE a.external_game_id = $1
-    AND an.status = 'completed'
-    AND ann.kind = 'llm'
-GROUP BY m.name
-ORDER BY annotated DESC, m.name
-`
-
-type ModelStatsForGameRow struct {
-	Model     string `json:"model"`
-	Annotated int32  `json:"annotated"`
-}
-
-// Per LLM model, the number of completed annotations produced on reviews of one game.
-// annotators -> models gives the model name; only completed annotations are counted.
-func (q *Queries) ModelStatsForGame(ctx context.Context, externalGameID int32) ([]ModelStatsForGameRow, error) {
-	rows, err := q.db.Query(ctx, modelStatsForGame, externalGameID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ModelStatsForGameRow{}
-	for rows.Next() {
-		var i ModelStatsForGameRow
-		if err := rows.Scan(&i.Model, &i.Annotated); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

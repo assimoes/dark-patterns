@@ -1,3 +1,5 @@
+// Command steam enqueues a scrape for a game or serves the worker that drains the scrape queue.
+// enqueue queues the first page, serve pulls pages until done.
 package main
 
 import (
@@ -54,6 +56,8 @@ func main() {
 	}
 }
 
+// serve runs the scrape worker with one worker on the scrape queue (steam is paged, dont parallelize)
+// and blocks until a shutdown signal.
 func serve(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	delay := fs.Duration("delay", 500*time.Millisecond, "delay between pages")
@@ -97,6 +101,7 @@ func serve(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) {
 	logger.Info("stopped; committed pages are svaed, restart serve to resume")
 }
 
+// enqueue loads the flags into a config and inserts the first scrape job for the game.
 func enqueue(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) {
 	cfg, err := config.Load(os.Args[2:], os.Getenv)
 	if err != nil {

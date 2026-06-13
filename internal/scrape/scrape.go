@@ -1,3 +1,5 @@
+// Package scrape is the river worker that pulls steam review pages one cursor at a time,
+// writes them, then enqueues the next page until done.
 package scrape
 
 import (
@@ -15,6 +17,7 @@ import (
 	"github.com/riverqueue/river"
 )
 
+// ScrapeArgs is one page of work: where we are (cursor) and how many reviews still wanted.
 type ScrapeArgs struct {
 	GameID    int32  `json:"game_id"`
 	Filter    string `json:"filter"`
@@ -23,10 +26,12 @@ type ScrapeArgs struct {
 	Remaining int    `json:"remaining"`
 }
 
+// Kind is the river job kind for these args.
 func (ScrapeArgs) Kind() string {
 	return "scrape_page"
 }
 
+// InsertOpts pins these to the scrape queue and dedupes by args so the same cursor wont double up.
 func (ScrapeArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue: "scrape",
@@ -36,6 +41,7 @@ func (ScrapeArgs) InsertOpts() river.InsertOpts {
 	}
 }
 
+// ScrapeWorker runs one page per job and self-enqueues the next.
 type ScrapeWorker struct {
 	river.WorkerDefaults[ScrapeArgs]
 	pool      *pgxpool.Pool
@@ -44,6 +50,7 @@ type ScrapeWorker struct {
 	logger    *slog.Logger
 }
 
+// NewScrapeWorker wires up the worker. nil logger falls back to slog.Default.
 func NewScrapeWorker(pool *pgxpool.Pool, sc *steam.Client, pageDelay time.Duration, logger *slog.Logger) *ScrapeWorker {
 	if logger == nil {
 		logger = slog.Default()
@@ -57,6 +64,9 @@ func NewScrapeWorker(pool *pgxpool.Pool, sc *steam.Client, pageDelay time.Durati
 	}
 }
 
+// Work fetches one page, writes it and the cursor in a tx, then enqueues the next page unless
+// were done (no next cursor, repeated cursor, empty page, or hit the remaining cap). page write
+// and next-job insert share the tx so a crash never loses or skips a page.
 func (w *ScrapeWorker) Work(ctx context.Context, job *river.Job[ScrapeArgs]) error {
 	a := job.Args
 
@@ -125,6 +135,8 @@ func (w *ScrapeWorker) Work(ctx context.Context, job *river.Job[ScrapeArgs]) err
 	return nil
 }
 
+// writePage upserts each review (artifact then text detail) and saves the next cursor so a
+// resumed run picks up where this one stopped.
 func writePage(ctx context.Context, q *db.Queries, gameID int32,
 	filter, language string, reviews []steam.Review, next string) error {
 
@@ -156,6 +168,8 @@ func writePage(ctx context.Context, q *db.Queries, gameID int32,
 	})
 }
 
+// Enqueue kicks off a scrape for a game by inserting the first page job. resumes from the saved
+// cursor if theres one, max is how many reviews to pull (0 = all).
 func Enqueue(ctx context.Context, client *river.Client[pgx.Tx],
 	pool *pgxpool.Pool, game int32, filter, language string, max int) error {
 
@@ -175,6 +189,8 @@ func Enqueue(ctx context.Context, client *river.Client[pgx.Tx],
 	return err
 }
 
+// loadCursor returns the saved cursor for this game/filter/language, or "*" (start from the top)
+// when theres nothing saved yet.
 func loadCursor(ctx context.Context, pool *pgxpool.Pool, game int32, filter, language string) (string, error) {
 	saved, err := db.New(pool).GetScrapeCursor(ctx, db.GetScrapeCursorParams{
 		ExternalGameID: game,

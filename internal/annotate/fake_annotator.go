@@ -5,17 +5,19 @@ import (
 	"encoding/json"
 )
 
-// FakeAnnotator is here so that tests don't need a real model
+// FakeAnnotator lets tests run without a real model.
 type FakeAnnotator struct {
 	Response json.RawMessage
 	Err      error
 	ID       RunIdentity
 }
 
+// Identity returns whatever the test set.
 func (f FakeAnnotator) Identity() RunIdentity {
 	return f.ID
 }
 
+// Annotate hands back the canned Response, or Err if one was set.
 func (f FakeAnnotator) Annotate(_ context.Context, _ Input) (Output, error) {
 	if f.Err != nil {
 		return Output{}, f.Err

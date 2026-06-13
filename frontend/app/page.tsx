@@ -6,11 +6,7 @@ import { RunsCard } from "@/components/dashboard/RunsCard";
 import { ReviewsCard } from "@/components/dashboard/ReviewsCard";
 import { useDashboard } from "@/hooks/useDashboard";
 
-// The dashboard reads its data from the Go API via
-// useDashboard() (React Query).
-// It owns the three top-level states — pending, error, loaded — and only renders
-// the cards once `data` is in hand, so each card can take plain typed props and
-// never worry about loading.
+// owns the pending/error/loaded states; renders cards only once data is in hand so they take plain typed props.
 export default function DashboardPage() {
   const { data, isPending, isError, refetch } = useDashboard();
 
@@ -72,8 +68,7 @@ export default function DashboardPage() {
   );
 }
 
-// While the first fetch is in flight, three placeholder cards keep the layout
-// stable so nothing jumps when the data arrives.
+// placeholder cards during the first fetch so the layout doesn't jump on arrival.
 function DashboardSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -107,8 +102,7 @@ function SkeletonCard() {
   );
 }
 
-// On a failed fetch we keep the same Card shell and give it a retry, so an outage
-// reads as a recoverable state rather than a broken page.
+// same Card shell + retry on failure, so an outage reads as recoverable.
 function DashboardError({ onRetry }: { onRetry: () => void }) {
   return (
     <Card

@@ -8,7 +8,7 @@ import { qk } from "@/lib/queryKeys";
 export function usePopulationPanel(populationId: string, enabled: boolean) {
     return useQuery({
         queryKey: qk.populationPanel(populationId),
-        queryFn: () => api.populationPanel(populationId),
+        queryFn: () => api.coverage.populationPanel(populationId),
         enabled,
     });
 }

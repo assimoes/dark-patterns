@@ -15,8 +15,8 @@ import (
 	"github.com/riverqueue/river"
 )
 
-// AnnotateArgs unit of durable work - annotate one individual with one panel member
-// ModelSlug and Modality are frozen at enqueue time
+// AnnotateArgs is one durable job: annotate one individual with one panel member.
+// ModelSlug and Modality are frozen at enqueue time.
 type AnnotateArgs struct {
 	RunID        int32  `json:"run_id"`
 	IndividualID int64  `json:"individual_id"`
@@ -25,10 +25,12 @@ type AnnotateArgs struct {
 	Modality     string `json:"modality"`
 }
 
+// Kind is the river job kind.
 func (AnnotateArgs) Kind() string {
 	return "annotate"
 }
 
+// InsertOpts routes to the annotate queue and dedups by args so the same job cant land twice.
 func (AnnotateArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue: "annotate",
@@ -48,6 +50,7 @@ type AnnotateWorker struct {
 	runCtx   sync.Map
 }
 
+// NewAnnotateWorker wires up the worker, indexing the loaders by modality. Nil logger falls back to default.
 func NewAnnotateWorker(
 	pool *pgxpool.Pool, loaders []Loader, registry map[string]Annotator, logger *slog.Logger) *AnnotateWorker {
 
@@ -68,7 +71,7 @@ func NewAnnotateWorker(
 	}
 }
 
-// runContext build once and cached in the worker's sync map
+// runContext is built once per run and cached in the workers sync map.
 type runContext struct {
 	rc  RenderCtx
 	tax Taxonomy
@@ -138,13 +141,13 @@ func (w *AnnotateWorker) loadRunContext(ctx context.Context, runID int32) (*runC
 	return actual.(*runContext), nil
 }
 
+// Work picks the annotator and loader for the job, loads the cached run context, then annotates.
 func (w *AnnotateWorker) Work(ctx context.Context, job *river.Job[AnnotateArgs]) error {
 	a := job.Args
 
-	// resolve the frozen job
 	annotator, ok := w.registry[a.ModelSlug]
 	if !ok {
-		// if this fails, the job goes into retryable/visible rather than silently dropping work
+		// error so the job stays visible/retryable instead of silently dropping work
 		return fmt.Errorf("no annotator registred for model slug %q", a.ModelSlug)
 	}
 
@@ -161,6 +164,8 @@ func (w *AnnotateWorker) Work(ctx context.Context, job *river.Job[AnnotateArgs])
 	return Annotate(ctx, w.pool, rcx.rc, rcx.tax, annotator, loader, a.RunID, a.AnnotatorID, a.IndividualID)
 }
 
+// Enqueue freezes the panel for a run, then inserts one job per annotator per still-unannotated
+// individual. Returns how many jobs went in. Safe to re-run, the unique opts skip dupes.
 func Enqueue(ctx context.Context, client *river.Client[pgx.Tx],
 	pool *pgxpool.Pool, runID int32, registry map[string]Annotator) (int, error) {
 
@@ -185,14 +190,12 @@ func Enqueue(ctx context.Context, client *river.Client[pgx.Tx],
 		return 0, err
 	}
 
-	// freeze the plan. SnapshotPanel keeps only the run's pinned annotator_ids (all llm when none
-	// are pinned); after this the panel is read from run_annotators and never re-derived.
-
+	// freeze the panel: pinned annotator_ids, or all llm when none pinned.
+	// After this the panel comes from run_annotators and is never re-derived.
 	if err := SnapshotPanel(ctx, q, run, prompt, tax, registry); err != nil {
 		return 0, err
 	}
 
-	// read the frozen panel. Single source of "who annotates this run?"
 	panel, err := q.ListRunAnnotators(ctx, runID)
 	if err != nil {
 		return 0, err

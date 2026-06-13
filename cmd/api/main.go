@@ -1,3 +1,4 @@
+// Command api is the http server backing the adjudication frontend, with graceful shutdown.
 package main
 
 import (
@@ -66,7 +67,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Run the listener in the background so main can block on the shutdown signal.
+	// listen in the background so main can block on the shutdown signal.
 	go func() {
 		logger.Info("api listening", "addr", addr, "origin", origin)
 

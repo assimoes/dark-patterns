@@ -10,18 +10,15 @@ import (
 	"github.com/assimoes/dsr/internal/db"
 )
 
-// RenderCtx is the per-run prompt material, shared across modalities
-// handed on every run. System is already rendered; Template is the per-item
-// user message.
+// RenderCtx is the per-run prompt material. System is pre-rendered; Template is the per-item user message.
 type RenderCtx struct {
 	System   string
 	Template *template.Template
 	Taxonomy string
 }
 
-// promptData is the single context both the system and user templates render
-// against. A flat taxonomy block feeds the simpler prompts; the structured
-// HighLevels/Patterns feed the richer ones. Per-item fields carry the review.
+// promptData backs both the system and user templates. Taxonomy block feeds simple
+// prompts; HighLevels/Patterns feed the richer ones; the rest carry the per-item review.
 type promptData struct {
 	Taxonomy        string
 	Content         string
@@ -34,19 +31,21 @@ type promptData struct {
 	Nonce           string
 }
 
-// Loader fetches one item's content and renders it into the model Input
-// One implementation per modality.
+// Loader fetches one item and renders it into a model Input. One per modality.
 type Loader interface {
 	Modality() string
 	Load(ctx context.Context, q *db.Queries, rc RenderCtx, individualID int64) (Input, error)
 }
 
+// TextLoader pulls the text review for an individual and renders the text-only Input.
 type TextLoader struct{}
 
+// Modality is "text".
 func (TextLoader) Modality() string {
 	return "text"
 }
 
+// Load fetches the review body, renders the user template with a fresh nonce, returns the Input.
 func (TextLoader) Load(ctx context.Context, q *db.Queries,
 	rc RenderCtx, individualID int64) (Input, error) {
 

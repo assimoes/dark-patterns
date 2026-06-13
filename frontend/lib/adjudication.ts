@@ -21,9 +21,8 @@ export type PatternVote = {
     evidence: string[]; // unique cited spans, present votes only
 };
 
-// Tally the panel votes for every pattern in a review. `models` defaults to the
-// static panel; the live screens pass the real panel from the API response, whose
-// model ids are the model names the detections are keyed by, so the columns line up.
+// tally panel votes per pattern. live screens pass the real panel so its model ids
+// match the names detections are keyed by; defaults to the static panel
 export function patternVotes(review: AdjReview, models: PanelModel[] = panelModels): PatternVote[] {
     return codebook.map((pattern) => {
         const votes: Vote[] = models.map((m) => {
@@ -42,7 +41,7 @@ export function patternVotes(review: AdjReview, models: PanelModel[] = panelMode
     });
 }
 
-// An override is a decision that contradicts a decisive panel majority.
+// a decision that contradicts a decisive panel majority
 export function isOverride(verdict: Verdict, decision?: Decision): boolean {
     return verdict !== "tie" && decision !== undefined && decision !== verdict;
 }
@@ -54,12 +53,12 @@ export function majorityDecision(verdict: Verdict): Decision {
 
 // ---- review highlighting (shared algorithm in lib/highlight.ts) ----
 
-// One colour per pattern that has any detection in this review.
+// one colour per pattern with any detection in this review
 export function highlightColors(review: AdjReview): Record<string, string> {
     return assignColors(review.present.map((d) => d.code));
 }
 
-// Split the body into plain + highlighted segments at the cited evidence spans.
+// split the body into segments at the cited evidence spans
 export function segmentReview(review: AdjReview, colors: Record<string, string>): Segment[] {
     const seen = new Set<string>();
     const spans = [] as { text: string; code: string; color: string }[];

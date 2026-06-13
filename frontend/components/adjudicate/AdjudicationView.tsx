@@ -28,10 +28,7 @@ import { RunSelector } from "./RunSelector";
 import { ReviewPane } from "./ReviewPane";
 import { PatternCard } from "./PatternCard";
 
-// The adjudication screen, now gated on a run + its persisted sample. Choosing a
-// panel run loads that run's sample (the worklist); the per-review panel votes
-// are then fetched on demand as the auditor pages through it. The pattern cards
-// and review pane are unchanged — only the data source moved to the API.
+// Adjudication screen gated on a run and its persisted sample
 export function AdjudicationView() {
     const [runId, setRunId] = useState("");
     const sample = useRunAdjudicationSample(runId, runId !== "");
@@ -96,9 +93,7 @@ export function AdjudicationView() {
     );
 }
 
-// Mounted only once a non-empty sample exists, so the per-review hooks below run
-// unconditionally. Holds the worklist position, the per-review-and-code decision
-// map, and persists each review's calls via useSubmitDecisions.
+// mounted only with a non-empty sample so the per-review hooks run unconditionally. owns position, the per-review+code decision map, persistence.
 function SampleWorklist({
     runId,
     sample,
@@ -106,16 +101,20 @@ function SampleWorklist({
     runId: string;
     sample: AdjudicationSample;
 }) {
+
     const reviews = sample.reviews;
-    const [idx, setIdx] = useState(0);
+
+    const firstIncompleteIdx = reviews.findIndex(f => f.decided === 0)
+
+
+    const [idx, setIdx] = useState(firstIncompleteIdx === -1 ? 0 : firstIncompleteIdx);
     const [decisions, setDecisions] = useState<Record<string, Decision>>({});
     const [hovered, setHovered] = useState<string | null>(null);
 
     const current: SampleReview = reviews[idx];
     const detail = useReviewAdjudication(current.id, runId, true);
 
-    // Map the wire response into the AdjReview the existing logic consumes, plus
-    // the real panel models and any gold labels to pre-fill from.
+    // wire response -> AdjReview, plus panel models and gold labels to pre-fill from.
     const mapped = useMemo(
         () => (detail.data ? mapAdjudicationReview(detail.data) : null),
         [detail.data],
@@ -134,15 +133,12 @@ function SampleWorklist({
         [mapped, colors],
     );
 
-    // The reviewId the write endpoint expects is the individual id string; runId scopes the write to
-    // the same panel run (and so the same gold run + taxonomy version) the screen is reading.
+    // runId scopes the write to the same panel run (so same gold run + taxonomy version) the screen is reading.
     const submit = useSubmitDecisions(current.id, runId);
 
     const keyOf = (code: string) => `${current.id}:${code}`;
 
-    // Effective decision for a pattern: the auditor's local call if they made one,
-    // otherwise the gold label the response pre-filled (so a re-opened review shows
-    // its saved state without forcing every cell to be touched again).
+    // effective decision: local call if made, else the pre-filled gold label (so a re-opened review keeps its saved state).
     const effective = (code: string): Decision | undefined =>
         decisions[keyOf(code)] ?? mapped?.goldDecisions[code];
 

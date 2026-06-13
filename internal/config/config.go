@@ -1,3 +1,4 @@
+// Package config parses the steam scraper flags and env into one Config.
 package config
 
 import (
@@ -7,6 +8,7 @@ import (
 	"time"
 )
 
+// Config is everything the steam enqueue command needs, half from flags half from env.
 type Config struct {
 	DatabaseURL string
 	AppID       string
@@ -17,6 +19,8 @@ type Config struct {
 	PageDelay   time.Duration
 }
 
+// Load parses args for the flags and reads DATABASE_URL via getenv, then validates.
+// getenv is injected so tests dont touch the real environment.
 func Load(args []string, getenv func(string) string) (Config, error) {
 	fs := flag.NewFlagSet("steam", flag.ContinueOnError)
 

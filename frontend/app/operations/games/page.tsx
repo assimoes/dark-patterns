@@ -11,7 +11,7 @@ import {
     inputClass,
 } from "@/components/operations/form";
 import { useCreateGame } from "@/hooks/useCreateGame";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/utils";
 import type { CreateGameInput, Monetization } from "@/lib/types";
 
 export default function GamesPage() {

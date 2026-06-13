@@ -36,9 +36,6 @@ type Querier interface {
 	// The most recent gold run for a population. Adjudication samples and decisions write into one gold
 	// run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
 	GetGoldRunForPopulation(ctx context.Context, populationID int32) (int32, error)
-	// The gold run that adjudications for this review's population are written to. There is one gold
-	// run per population; pick the most recent so revisits land on the same row the queue was built from.
-	GetGoldRunForReview(ctx context.Context, individualID int64) (int32, error)
 	GetLLMAnnotatorByModel(ctx context.Context, modelID *int32) (Annotator, error)
 	GetLatestPrompt(ctx context.Context, name string) (Prompt, error)
 	// The most recent sample drawn for a panel run, to reopen its queue.
@@ -106,9 +103,6 @@ type Querier interface {
 	// population is multi-game (stratified, per-game capped), so this is THIS game's part of it. Counts
 	// are per population, never summed across them.
 	ListPopulationsForGame(ctx context.Context, externalGameID int32) ([]ListPopulationsForGameRow, error)
-	// The patterns the panel marked present on one review in one run: a pattern is present when a
-	// majority of the completing raters flagged it. Returns the meso code and name for each.
-	ListPresentPatternsForReview(ctx context.Context, arg ListPresentPatternsForReviewParams) ([]ListPresentPatternsForReviewRow, error)
 	// Every prompt as a form option: its id, name, version and modality. Ordered by id for a stable list.
 	ListPrompts(ctx context.Context) ([]ListPromptsRow, error)
 	// Existing gold labels for one review, to pre-fill the checkboxes on revisit.
@@ -119,9 +113,6 @@ type Querier interface {
 	ListReviewDetections(ctx context.Context, arg ListReviewDetectionsParams) ([]ListReviewDetectionsRow, error)
 	// Read the frozen panel.
 	ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error)
-	// The adjudication queue for a run: every distinct individual (review) annotated in this run,
-	// with the game it belongs to and the review text/vote/language to render. One row per review.
-	ListRunReviews(ctx context.Context, runID int32) ([]ListRunReviewsRow, error)
 	// Every run with what an operator needs to recognise and pick it: its type, the population modality as a
 	// label, the foreign keys, the taxonomy version, when it ran, and the size of the panel it pinned.
 	ListRuns(ctx context.Context) ([]ListRunsRow, error)
@@ -140,9 +131,6 @@ type Querier interface {
 	// The work queue for one panel member.
 	// Modality agnostic
 	ListUnnanotatedIndividuals(ctx context.Context, arg ListUnnanotatedIndividualsParams) ([]int64, error)
-	// Per LLM model, the number of completed annotations produced on reviews of one game.
-	// annotators -> models gives the model name; only completed annotations are counted.
-	ModelStatsForGame(ctx context.Context, externalGameID int32) ([]ModelStatsForGameRow, error)
 	// Per LLM model, the number of DISTINCT reviews of one game annotated within one population. Counting
 	// distinct individuals (not annotation rows) and scoping to a single population makes the models
 	// comparable: inside one population they all share the same work set, so a complete run shows every

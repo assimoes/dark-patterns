@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import Link from "next/link";
 import { OperationsNav } from "@/components/operations/OperationsNav";
 
-// The operator area shell. 
+// operator area shell.
 export default function OperationsLayout({
     children,
 }: {

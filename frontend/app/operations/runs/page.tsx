@@ -14,7 +14,7 @@ import { PopulationSelect } from "@/components/operations/PopulationSelect";
 import { PromptSelect } from "@/components/operations/PromptSelect";
 import { AnnotatorMultiSelect } from "@/components/operations/AnnotatorMultiSelect";
 import { useCreateRun } from "@/hooks/useCreateRun";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/utils";
 import type { CreateRunInput, RunType } from "@/lib/types";
 
 // Create-run form.

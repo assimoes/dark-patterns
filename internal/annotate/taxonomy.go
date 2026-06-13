@@ -8,6 +8,8 @@ import (
 	"github.com/assimoes/dsr/internal/db"
 )
 
+// Taxonomy is one pinned taxonomy version loaded for a run. Block is the flat text rendered into
+// simple prompts; HighLevels and Patterns feed the richer ones; byCode maps a meso code to its row id.
 type Taxonomy struct {
 	Version    int32
 	byCode     map[string]int32
@@ -35,11 +37,14 @@ type PatternView struct {
 	Counterexamples []string
 }
 
+// ID looks up the row id for a meso code. ok is false when the code isnt in this version.
 func (t Taxonomy) ID(code string) (int32, bool) {
 	id, ok := t.byCode[code]
 	return id, ok
 }
 
+// LoadTaxonomy reads one taxonomy version from the db and builds the lookup map, prompt block,
+// and the high-level/pattern views. Errors if the version has no patterns.
 func LoadTaxonomy(ctx context.Context, q *db.Queries, version int32) (Taxonomy, error) {
 	rows, err := q.ListMesoPatternsByVersion(ctx, version)
 	if err != nil {

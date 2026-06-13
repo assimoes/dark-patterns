@@ -10,7 +10,7 @@ import {
 } from "@/components/operations/form";
 import { RunSelect } from "@/components/operations/RunSelect";
 import { useEnqueueAnnotations } from "@/hooks/useEnqueueAnnotations";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/utils";
 
 // Enqueue-annotations form.
 export default function AnnotationsPage() {

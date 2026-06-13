@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/assimoes/dsr/internal/annotate"
+	"github.com/assimoes/dsr/internal/api/dto"
 	"github.com/assimoes/dsr/internal/db"
 	"github.com/assimoes/dsr/internal/scrape"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// POST /api/games — register a game (mirrors how a game becomes visible: a game_display row).
+// addGameRequest is the body of POST /api/games, the fields that become a game_display row.
 type addGameRequest struct {
 	ExternalGameID int32  `json:"external_game_id"`
 	Name           string `json:"name"`
@@ -25,7 +26,7 @@ type addGameRequest struct {
 	Color          string `json:"color"`
 }
 
-// createGame registers a game so it appears on the dashboard and can be scraped.
+// createGame registers a game so it shows on the dashboard and can be scraped.
 func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	var req addGameRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -73,7 +74,7 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.writeJSON(w, http.StatusCreated, Game{
+	s.writeJSON(w, http.StatusCreated, dto.Game{
 		ID:           gameID(req.ExternalGameID),
 		Name:         name,
 		Short:        short,
@@ -82,8 +83,8 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// POST /api/annotators — add a human or llm annotator.
-
+// addAnnotatorRequest is the body of POST /api/annotators. the family/slug/name/modalities fields only
+// matter for kind=llm, theyre the model row we upsert before linking the annotator to it.
 type addAnnotatorRequest struct {
 	Kind       string   `json:"kind"`
 	Label      string   `json:"label"`
@@ -93,6 +94,7 @@ type addAnnotatorRequest struct {
 	Modalities []string `json:"modalities"`
 }
 
+// annotatorResponse is the 201 body of POST /api/annotators. ModelID is null for humans.
 type annotatorResponse struct {
 	ID      int32  `json:"id"`
 	Kind    string `json:"kind"`
@@ -180,8 +182,7 @@ func (s *Server) createAnnotator(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /api/populations — curate a population (mirrors cmd/curate).
-
+// createPopulationRequest is the body of POST /api/populations, same knobs the curate CLI takes.
 type createPopulationRequest struct {
 	Description     string `json:"description"`
 	MinHoursPlayed  int    `json:"min_hours_played"`
@@ -189,6 +190,7 @@ type createPopulationRequest struct {
 	ArtifactsCutoff string `json:"artifacts_cutoff"`
 }
 
+// createPopulationResponse is the 201 body: the new id, how many rows the freeze inserted, and the running total.
 type createPopulationResponse struct {
 	PopulationID        int32 `json:"population_id"`
 	InsertedIndividuals int64 `json:"inserted_individuals"`
@@ -203,7 +205,7 @@ type opsCriteria struct {
 	ArtifactsCutoff time.Time `json:"artifacts_cutoff"`
 }
 
-// createPopulation creates a population and freezes a stratified sample into it, then reports the size.
+// createPopulation creates a population, freezes a stratified sample into it, and reports the size.
 func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -297,8 +299,7 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// POST /api/runs — create a run (mirrors cmd/run, including the validate() pre-checks).
-
+// createRunRequest is the body of POST /api/runs, same inputs cmd/run takes.
 type createRunRequest struct {
 	PopulationID    int32   `json:"population_id"`
 	PromptID        int32   `json:"prompt_id"`
@@ -308,6 +309,7 @@ type createRunRequest struct {
 	AnnotatorIDs    []int32 `json:"annotator_ids"`
 }
 
+// createRunResponse is the 201 body of POST /api/runs, echoes the resolved run back.
 type createRunResponse struct {
 	RunID           int32   `json:"run_id"`
 	RunType         string  `json:"run_type"`
@@ -383,7 +385,8 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// validateRun mirrors cmd/run's validate()
+// validateRun mirrors cmd/runs validate(): annotators must exist and be llm, the population must have
+// individuals, the prompt modality must be text or image, and the taxonomy version must have codes
 func (s *Server) validateRun(ctx context.Context, annotatorIDs []int32, populationID, promptID, taxVersion int32) error {
 	if len(annotatorIDs) > 0 {
 		rows, err := s.q.ListAnnotatorsByIDs(ctx, annotatorIDs)
@@ -434,8 +437,7 @@ func (s *Server) validateRun(ctx context.Context, annotatorIDs []int32, populati
 	return nil
 }
 
-// POST /api/scrapes — enqueue a Steam scrape (mirrors cmd/steam enqueue).
-
+// scrapeRequest is the body of POST /api/scrapes, same args as steam enqueue. App is the steam app id as a string.
 type scrapeRequest struct {
 	App    string `json:"app"`
 	Filter string `json:"filter"`
@@ -494,9 +496,8 @@ func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// POST /api/runs/{runID}/annotations — enqueue annotation jobs (mirrors cmd/annotate enqueue).
-
-// enqueueAnnotations freezes the run's panel and enqueues one annotation job per (individual, annotator)
+// enqueueAnnotations freezes the runs panel and enqueues one annotation job per (individual, annotator),
+// same as annotate enqueue. POST /api/runs/{runID}/annotations.
 func (s *Server) enqueueAnnotations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

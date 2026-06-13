@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, Eraser, EyeOff, Inbox, Save } from "lucide-react
 import { assignColors, splitBySpans } from "@/lib/highlight";
 import { codebook } from "@/lib/codebook";
 import { type Decision } from "@/lib/adjudication";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/utils";
 import { useRunAdjudicationSample } from "@/hooks/useRunAdjudicationSample";
 import { useReviewBlind } from "@/hooks/useReviewBlind";
 import { useSubmitDecisions } from "@/hooks/useSubmitDecisions";
@@ -15,10 +15,7 @@ import { RunSelector } from "@/components/adjudicate/RunSelector";
 import { BlindReviewPane } from "./BlindReviewPane";
 import { BlindPatternCard } from "./BlindPatternCard";
 
-// The blind screen, gated on a run + its sample like the adjudication screen.
-// The worklist is the same persisted sample, but each review is read through the
-// blind endpoint (text only — NO panel data), so the labeller scores from the
-// codebook alone. Labels are persisted the same way as the panel screen.
+// blind screen: same sample/persistence as adjudication, but reviews read via the blind endpoint (text only, no panel data).
 export function BlindAdjudicationView() {
     const [runId, setRunId] = useState("");
     const sample = useRunAdjudicationSample(runId, runId !== "");
@@ -96,9 +93,7 @@ export function BlindAdjudicationView() {
     );
 }
 
-// Mounted only with a non-empty sample so the per-review hook runs
-// unconditionally. Owns the worklist position, the labeller's decisions + cited
-// evidence, the selection-capture flow, and persistence.
+// mounted only with a non-empty sample so the per-review hook runs unconditionally. owns position, decisions, cited evidence, capture, persistence.
 function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: string }) {
     const reviews = sample.reviews;
     const [idx, setIdx] = useState(0);

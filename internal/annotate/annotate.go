@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Annotate is the unit the River worker uses
+// Annotate is the unit of work the River worker runs.
 func Annotate(ctx context.Context, pool *pgxpool.Pool, rc RenderCtx,
 	tax Taxonomy, annotator Annotator, loader Loader, runID, annotatorID int32, individualID int64) error {
 

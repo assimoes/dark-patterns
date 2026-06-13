@@ -4,9 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
-// Per-model annotation counts scoped to a single population — distinct annotated
-// reviews per model. A second-level lazy drill-in: gated on `enabled` so nothing
-// is fetched until the auditor expands the population row inside an open game.
+// distinct annotated reviews per model for one population.
+// gated on `enabled` — lazy drill-in, fetches only once the population row is expanded
 export function useGamePopulationModels(
     gameId: string,
     populationId: string,

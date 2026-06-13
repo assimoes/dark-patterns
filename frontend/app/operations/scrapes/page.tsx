@@ -11,7 +11,7 @@ import {
     inputClass,
 } from "@/components/operations/form";
 import { useEnqueueScrape } from "@/hooks/useEnqueueScrape";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/utils";
 import type { EnqueueScrapeInput, ScrapeFilter } from "@/lib/types";
 import { GameSelect } from "@/components/operations/GameSelect";
 

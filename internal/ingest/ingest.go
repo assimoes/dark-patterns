@@ -1,3 +1,4 @@
+// Package ingest maps a steam review into the db upsert params, artifact row and the text detail.
 package ingest
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// ArtifactParams builds the artifact upsert row for a review. content hash dedupes re-scrapes.
 func ArtifactParams(gameID int32, r steam.Review, scrapedAt time.Time) db.UpsertArtifactParams {
 	return db.UpsertArtifactParams{
 		Modality:       "text",
@@ -19,6 +21,8 @@ func ArtifactParams(gameID int32, r steam.Review, scrapedAt time.Time) db.Upsert
 	}
 }
 
+// TextReviewParams builds the text detail row tied to an artifact. playtime comes in minutes so
+// divide by 60 for hours, and a bad weighted score just falls back to empty numeric.
 func TextReviewParams(artifactID int64, r steam.Review) db.UpsertTextReviewDetailParams {
 	weightedScore, err := toNumeric(string(r.WeightedVotedScore))
 	if err != nil {

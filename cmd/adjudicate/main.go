@@ -1,3 +1,5 @@
+// Command adjudicate serves the http api the human uses to confirm or override panel votes into
+// the gold run.
 package main
 
 import (
@@ -173,8 +175,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// handleWorklist lists the reviews in scope (one row per review), with how many of its patterns are
-// already adjudicated, so the auditor can see progress and pick what to work on.
+// one row per in-scope review, plus how many of its patterns are already adjudicated.
 func (a *api) handleWorklist(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -223,8 +224,7 @@ func (a *api) handleWorklist(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, out)
 }
 
-// handleReview returns one review's text plus every pattern in the codebook: its definition, the
-// panel's vote, and — for the ones a model flagged — who flagged it with their evidence/explanation.
+// review text plus every codebook pattern: definition, panel vote, and which model flagged it.
 func (a *api) handleReview(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -306,9 +306,7 @@ func (a *api) handleReview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleReviewDecisions writes every pattern's decision for one review in a single transaction. The
-// panel seed is rebuilt and frozen per pattern from a fresh trusted read, exactly as the single-cell
-// path does, so the browser only ever sends the labels.
+// all of a reviews decisions in one tx; panel seed rebuilt server-side so the browser only sends labels.
 func (a *api) handleReviewDecisions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

@@ -3,8 +3,7 @@
 import { useDashboard } from "@/hooks/useDashboard";
 import type { Run } from "@/lib/types";
 
-// A panel run is one with at least one llm member — the only kind that has panel
-// votes to adjudicate. Human-only/gold runs are excluded from the selector.
+// panel run = has at least one llm member; human-only/gold runs have no panel votes, so they're excluded.
 const isPanelRun = (run: Run) => run.members.some((m) => m.kind === "llm");
 
 const accentRing: Record<"violet" | "sky", string> = {
@@ -12,9 +11,7 @@ const accentRing: Record<"violet" | "sky", string> = {
     sky: "focus:border-sky-400 focus:ring-sky-100",
 };
 
-// The run picker shared by the adjudication and blind screens: it lists the panel
-// runs from the dashboard payload and reports the chosen run id upward. `accent`
-// only tints the focus ring, so each screen keeps its own colour.
+// run picker shared by the adjudication + blind screens. `accent` only tints the focus ring.
 export function RunSelector({
     runId,
     onChange,

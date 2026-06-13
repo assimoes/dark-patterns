@@ -10,27 +10,23 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/assimoes/dsr/internal/adjudicate"
+	"github.com/assimoes/dsr/internal/api/dto"
 	"github.com/assimoes/dsr/internal/db"
 	"github.com/jackc/pgx/v5"
 )
 
-// strataKey groups the candidate pool by the two axes we draw within: each (game, stratum) cell is
-// sampled independently so every game and every stratum is represented in proportion to its target.
+// strataKey is one (game, stratum) cell; each cell is sampled independently.
 type strataKey struct {
 	gameID  int32
 	stratum string
 }
 
-// createAdjudicationSample draws and persists a stratified sample. It resolves the panel run's
-// population and its gold run (creating the gold run if the population has none yet), classifies every
-// completed review into one stratum, then for each (game x stratum) cell shuffles with a seeded RNG and
-// takes min(target, cell size). The whole sample (header + one item per selected review, each carrying
-// its stratum and selection probability) is written in one transaction so a half-drawn sample is never
-// observable. The seed is stored so the draw is reproducible and auditable.
+// createAdjudicationSample draws and persists a stratified sample.
 func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req createSampleRequest
+	var req dto.CreateSampleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.writeError(w, http.StatusBadRequest, "bad json body", err)
 		return
@@ -47,7 +43,6 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Resolve the gold run for the population, or create one mirroring the panel run's configuration.
 	goldRun, err := s.resolveGoldRun(ctx, panelRun)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "resolve gold run", err)
@@ -63,7 +58,7 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Group the candidate pool into (game x stratum) cells.
+	// group into (game x stratum) cells
 	groups := make(map[strataKey][]db.ClassifyReviewsForSamplingRow)
 	for _, row := range rows {
 		k := strataKey{gameID: row.ExternalGameID, stratum: row.Stratum}
@@ -76,8 +71,7 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 		"silent":           req.Silent,
 	}
 
-	// Seed: use the supplied one for a reproducible draw, otherwise generate and store one so the
-	// persisted sample is still reproducible after the fact.
+	// store the seed (supplied or generated) so the draw stays reproducible after the fact
 	seed := time.Now().UnixNano()
 	if req.Seed != nil {
 		seed = *req.Seed
@@ -94,8 +88,7 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Draw the selected items before opening the transaction. Iterating the cells in a stable key
-	// order keeps the draw deterministic for a given seed regardless of map iteration order.
+	// draw before opening the tx; stable key order keeps the draw deterministic per seed
 	keys := make([]strataKey, 0, len(groups))
 	for k := range groups {
 		keys = append(keys, k)
@@ -113,7 +106,7 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 	}
 
 	var picks []selected
-	counts := stratumCounts{}
+	counts := dto.StratumCounts{}
 
 	for _, k := range keys {
 		cell := groups[k]
@@ -125,7 +118,7 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 			continue
 		}
 
-		// Shuffle a copy with the seeded RNG, then take the first n.
+		// shuffle a copy with the seeded RNG, take first n
 		shuffled := make([]db.ClassifyReviewsForSamplingRow, len(cell))
 		copy(shuffled, cell)
 		rng.Shuffle(len(shuffled), func(i, j int) {
@@ -186,7 +179,7 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	s.writeJSON(w, http.StatusCreated, createSampleResponse{
+	s.writeJSON(w, http.StatusCreated, dto.CreateSampleResponse{
 		SampleID:  sampleID,
 		GoldRunID: goldRun,
 		Seed:      seed,
@@ -194,9 +187,8 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// resolveGoldRun returns the population's gold run, creating one that mirrors the panel run's
-// population, prompt, taxonomy version and temperature when none exists yet. There is one gold run per
-// population; samples and decisions for the same population all land on the same run.
+// resolveGoldRun returns the populations gold run, creating one from the panel runs config if theres none
+// yet. one gold run per population, so samples and decisions all land on the same run.
 func (s *Server) resolveGoldRun(ctx context.Context, panelRun db.Run) (int32, error) {
 	goldRun, err := s.q.GetGoldRunForPopulation(ctx, panelRun.PopulationID)
 	if err == nil {
@@ -206,7 +198,6 @@ func (s *Server) resolveGoldRun(ctx context.Context, panelRun db.Run) (int32, er
 		return 0, err
 	}
 
-	// No gold run yet: create one from the panel run's configuration.
 	return s.q.CreateRun(ctx, db.CreateRunParams{
 		RunType:         "gold",
 		PopulationID:    panelRun.PopulationID,
@@ -219,9 +210,7 @@ func (s *Server) resolveGoldRun(ctx context.Context, panelRun db.Run) (int32, er
 	})
 }
 
-// runAdjudicationSample returns the persisted sample for a panel run and its frozen review queue. The
-// queue carries each review's stratum and how many of its patterns already have a gold label, so the
-// frontend can show progress. 404 when the run has no sample yet.
+// runAdjudicationSample returns the persisted sample for a panel run and its frozen review queue.
 func (s *Server) runAdjudicationSample(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -247,9 +236,9 @@ func (s *Server) runAdjudicationSample(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reviews := make([]SampleReview, 0, len(rows))
+	reviews := make([]dto.SampleReview, 0, len(rows))
 	for _, rv := range rows {
-		reviews = append(reviews, SampleReview{
+		reviews = append(reviews, dto.SampleReview{
 			ID:       strconv.FormatInt(rv.IndividualID, 10),
 			GameID:   gameID(rv.ExternalGameID),
 			Stratum:  rv.Stratum,
@@ -259,18 +248,14 @@ func (s *Server) runAdjudicationSample(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	s.writeJSON(w, http.StatusOK, sampleResponse{
+	s.writeJSON(w, http.StatusOK, dto.SampleResponse{
 		SampleID:  sample.ID,
 		GoldRunID: sample.GoldRunID,
 		Reviews:   reviews,
 	})
 }
 
-// reviewAdjudication returns the full review the auditor decides on: the body and metadata, the panel
-// models, the per-model detections (a detection row IS a Present vote; Absent otherwise — the frontend
-// reconstructs every model's per-pattern vote from detections + panelModels), and any existing gold
-// labels keyed by pattern code. The {reviewId} path value is the individual id; the panel run comes
-// from ?run= or, when absent, the review's most recent panel run.
+// reviewAdjudication returns the full review the auditor decides on.
 func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -322,9 +307,9 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	detections := make([]Detection, 0, len(dets))
+	detections := make([]dto.Detection, 0, len(dets))
 	for _, d := range dets {
-		detections = append(detections, Detection{
+		detections = append(detections, dto.Detection{
 			PatternCode: codeByID[d.PatternID],
 			Model:       d.ModelSlug,
 			Evidence:    d.Evidence,
@@ -332,7 +317,7 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// The panel model list lets the frontend infer Absent (a model with no detection row on a pattern).
+	// panel model list lets the frontend infer Absent (model with no detection row on a pattern)
 	annotators, err := s.q.ListRunAnnotators(ctx, panelRun)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "load panel models", err)
@@ -343,7 +328,7 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 		panelModels = append(panelModels, a.ModelSlug)
 	}
 
-	// Existing gold labels for the auditor to revisit, keyed by pattern code for the frontend.
+	// existing gold labels to revisit, keyed by pattern code for the frontend
 	goldRun, err := s.q.GetGoldRunForPopulation(ctx, run.PopulationID)
 	goldLabels := map[string]bool{}
 	if err == nil {
@@ -365,7 +350,7 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, adjudicationReview{
+	s.writeJSON(w, http.StatusOK, dto.AdjudicationReview{
 		ID:          strconv.FormatInt(individualID, 10),
 		GameID:      gameID(meta.ExternalGameID),
 		VotedUp:     meta.VotedUp,
@@ -377,9 +362,7 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// reviewBlind returns the panel-FREE projection for the blind pass: the review body and metadata and
-// nothing about the panel. This is the provably-blind boundary — no detections, no votes, no gold
-// labels can leak through it. The {reviewId} path value is the individual id.
+// reviewBlind returns the panel-free projection for the blind pass.
 func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -395,7 +378,7 @@ func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, blindReview{
+	s.writeJSON(w, http.StatusOK, dto.BlindReview{
 		ID:       strconv.FormatInt(individualID, 10),
 		GameID:   gameID(meta.ExternalGameID),
 		VotedUp:  meta.VotedUp,
@@ -404,12 +387,152 @@ func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// resolvePanelRun picks the panel run for a review: the ?run= query param when present and valid,
-// otherwise the review's most recent llm_panel run.
+// resolvePanelRun picks the panel run for a review: ?run= if present, else the reviews newest llm_panel run.
 func (s *Server) resolvePanelRun(ctx context.Context, r *http.Request, individualID int64) (int32, error) {
 	if q := r.URL.Query().Get("run"); q != "" {
 		return parseInt32(q)
 	}
 
 	return s.q.GetPanelRunForReview(ctx, individualID)
+}
+
+// reviewDecisions records the auditors present/absent calls for one review ({reviewId} is the
+// individual id). each call freezes the panel state at decision time, the whole set is one tx so theres no
+// partial save. responds 204.
+func (s *Server) reviewDecisions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	individualID, err := strconv.ParseInt(r.PathValue("reviewId"), 10, 64)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid reviewId", err)
+		return
+	}
+
+	var req dto.DecisionsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "bad json body", err)
+		return
+	}
+
+	// derive gold run and taxonomy version from the ?run= the screen sends, not "newest panel run":
+	// a population can hold panel runs of different tax versions, and the read maps labels by this
+	// runs pattern-version ids, so a mismatch here hides the saved labels on revisit
+	panelRun, err := s.resolvePanelRun(ctx, r, individualID)
+	if err != nil {
+		s.writeError(w, http.StatusNotFound, "no panel run for this review", err)
+		return
+	}
+
+	panelRunRow, err := s.q.GetRun(ctx, panelRun)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "load panel run", err)
+		return
+	}
+
+	taxVersion := int32(1)
+	if panelRunRow.TaxonomyVersion != nil {
+		taxVersion = *panelRunRow.TaxonomyVersion
+	}
+
+	goldRun, err := s.q.GetGoldRunForPopulation(ctx, panelRunRow.PopulationID)
+	if err != nil {
+		s.writeError(w, http.StatusNotFound, "no gold run for this review", err)
+		return
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "begin tx", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	q := db.New(tx)
+
+	for code, label := range req.Decisions {
+		final, ok := parseLabel(label)
+		if !ok {
+			s.writeError(w, http.StatusBadRequest, "decision must be 'present' or 'absent'", nil)
+			return
+		}
+
+		patternID, err := q.GetPatternIDByCode(ctx, db.GetPatternIDByCodeParams{Code: code, Version: taxVersion})
+		if err != nil {
+			s.writeError(w, http.StatusBadRequest, "unknown pattern code "+code, err)
+			return
+		}
+
+		seed, vote, err := s.buildSeed(ctx, q, panelRun, individualID, patternID)
+		if err != nil {
+			s.writeError(w, http.StatusInternalServerError, "build panel seed", err)
+			return
+		}
+
+		direction := "replacement"
+		if final == vote {
+			direction = "confirmation"
+		}
+
+		if err := q.UpsertAdjudication(ctx, db.UpsertAdjudicationParams{
+			RunID:                   goldRun,
+			IndividualID:            individualID,
+			PatternID:               patternID,
+			FinalLabel:              final,
+			Direction:               direction,
+			AdjudicatorID:           s.auditor,
+			PanelSeedAtAdjudication: seed.JSON(),
+		}); err != nil {
+			s.writeError(w, http.StatusInternalServerError, "save adjudication", err)
+			return
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		s.writeError(w, http.StatusInternalServerError, "commit tx", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// buildSeed reconstructs the panel verdict for one (panel run, review, pattern) and returns the frozen
+// seed plus the majority vote, so a decision can be marked confirmation or replacement.
+func (s *Server) buildSeed(ctx context.Context, q db.Querier, panelRun int32, individualID int64, patternID int32) (adjudicate.PanelSeed, bool, error) {
+	counts, err := q.GetPanelVoteForCell(ctx, db.GetPanelVoteForCellParams{
+		PanelRunID:   panelRun,
+		IndividualID: individualID,
+		PatternID:    patternID,
+	})
+	if err != nil {
+		return adjudicate.PanelSeed{}, false, err
+	}
+
+	perRater, err := q.ListPanelVotesForCell(ctx, db.ListPanelVotesForCellParams{
+		PanelRunID:   panelRun,
+		IndividualID: individualID,
+		PatternID:    patternID,
+	})
+	if err != nil {
+		return adjudicate.PanelSeed{}, false, err
+	}
+
+	vote := adjudicate.Majority(int(counts.NPresent), int(counts.NTotal))
+
+	votes := make([]adjudicate.PanelVerdict, 0, len(perRater))
+	for _, v := range perRater {
+		votes = append(votes, adjudicate.PanelVerdict{
+			AnnotatorID: v.AnnotatorID,
+			ModelSlug:   v.ModelSlug,
+			Present:     v.Present,
+			Evidence:    v.Evidence,
+			Explanation: v.Explanation,
+		})
+	}
+
+	return adjudicate.PanelSeed{
+		Vote:     vote,
+		NPresent: int(counts.NPresent),
+		NTotal:   int(counts.NTotal),
+		Votes:    votes,
+	}, vote, nil
 }

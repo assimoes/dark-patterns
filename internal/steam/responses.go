@@ -2,6 +2,7 @@ package steam
 
 import "encoding/json"
 
+// Author is the review writer block steam returns. playtime fields are minutes.
 type Author struct {
 	SteamID              string `json:"steamid"`
 	NumGamesOwned        int    `json:"num_games_owned"`
@@ -11,6 +12,7 @@ type Author struct {
 	LastPlayed           int64  `json:"last_played"`
 }
 
+// Review is one steam review as it comes off the appreviews api.
 type Review struct {
 	RecommendationID         string     `json:"recommendationid"`
 	Author                   Author     `json:"author"`
@@ -29,6 +31,7 @@ type Review struct {
 	WrittenDuringEarlyAccess bool       `json:"written_during_early_access"`
 }
 
+// QuerySummary is the rollup steam tacks on, totals and the score blurb. we dont really use it.
 type QuerySummary struct {
 	NumReviews      int    `json:"num_reviews"`
 	ReviewScore     int    `json:"review_score"`
@@ -38,6 +41,8 @@ type QuerySummary struct {
 	TotalReviews    int    `json:"total_reviews"`
 }
 
+// ReviewResponse is the whole page payload. Cursor is what you pass next to page on, success != 1
+// means steam refused.
 type ReviewResponse struct {
 	Success      int          `json:"success"`
 	QuerySummary QuerySummary `json:"query_summary"`
@@ -45,8 +50,7 @@ type ReviewResponse struct {
 	Reviews      []Review     `json:"reviews"`
 }
 
-// The steam api is inconsistent with the weighted_vote_score field. Sometimes it returns "0.5" and other times 0.5 or "null".
-// This is why we have to make this "hack"
+// weighted_vote_score comes back as "0.5", 0.5, or "null" depending on the call.
 type flexString string
 
 func (s *flexString) UnmarshalJSON(b []byte) error {

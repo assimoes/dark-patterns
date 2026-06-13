@@ -11,7 +11,7 @@ import {
     inputClass,
 } from "@/components/operations/form";
 import { useCreatePopulation } from "@/hooks/useCreatePopulation";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/utils";
 import type { CreatePopulationInput } from "@/lib/types";
 
 export default function PopulationsPage() {
@@ -28,8 +28,7 @@ export default function PopulationsPage() {
         if (description.trim()) body.description = description.trim();
         if (minHours !== "") body.min_hours_played = Number(minHours);
         if (perGameCap !== "") body.per_game_cap = Number(perGameCap);
-        // datetime-local has no timezone; new Date(...).toISOString() yields an
-        // RFC3339 UTC timestamp, which is what the backend expects.
+        // datetime-local has no tz; toISOString() gives the RFC3339 UTC the backend wants.
         if (cutoff) body.artifacts_cutoff = new Date(cutoff).toISOString();
         createPopulation.mutate(body);
     };

@@ -1,5 +1,4 @@
-// Shared, domain-agnostic highlighting used by both the adjudication screen
-// (LLM-cited evidence) and the blind screen (self-cited evidence).
+// highlighting shared by the adjudication (LLM-cited) and blind (self-cited) screens
 
 export type Segment = { text: string; code?: string; color?: string };
 
@@ -14,7 +13,7 @@ const PALETTE = [
     "#0d9488", // teal
 ];
 
-// One stable colour per code (sorted so the assignment is deterministic).
+// one colour per code, sorted so it's deterministic
 export function assignColors(codes: string[]): Record<string, string> {
     const map: Record<string, string> = {};
     Array.from(new Set(codes))
@@ -23,10 +22,8 @@ export function assignColors(codes: string[]): Record<string, string> {
     return map;
 }
 
-// Split a body into plain + highlighted segments at the given spans.
-// Spans are matched by first occurrence and de-duplicated by text, so a phrase
-// cited twice (or one that repeats in the body) only highlights once, at its
-// first position. That is fine for this corpus; callers should not rely on it.
+// split body into plain + highlighted segments at the spans.
+// spans matched by first occurrence and deduped by text, so a repeated phrase only highlights once
 export function splitBySpans(
     body: string,
     spans: { text: string; code: string; color: string }[],

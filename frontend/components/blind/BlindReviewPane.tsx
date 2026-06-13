@@ -24,8 +24,7 @@ export function BlindReviewPane({
     onMouseUp: () => void;
     onCancelCapture: () => void;
 }) {
-    // Resolve the game from the live dashboard games (keyed by external game id), not the static mock
-    // list — see ReviewPane: the mock lookup fell back to "World of Tanks" for every real review.
+    // game from live dashboard games (by external id), not the static mock list — that fell back to "World of Tanks" for every real review.
     const dashboard = useDashboard();
     const g = dashboard.data?.games.find((x) => x.id === review.gameId);
     const color = g?.color ?? "#94a3b8";

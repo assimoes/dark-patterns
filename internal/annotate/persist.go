@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Persist writes one annotation (and response_meta) and it's pattern rows in a single transaction. Idempotent
+// Persist writes one annotation and its pattern rows in a single transaction. Idempotent.
 func Persist(
 	ctx context.Context,
 	pool *pgxpool.Pool,
@@ -40,7 +40,7 @@ func Persist(
 		ResponseMeta: meta.JSON(),
 	})
 
-	// occurs when a previous attempt was already completed
+	// no row means a prior attempt already completed
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -81,12 +81,11 @@ func Persist(
 	return tx.Commit(ctx)
 }
 
-// toJSONB guarantees a valid jsonb value: pass valid JSON through untouched; wrap
-// anything else (a non-JSON or empty model reply, i.e. the parseError case) as a JSON string.
+// toJSONB returns valid jsonb: pass JSON through, wrap anything else (the parse_error case) as a string.
 func toJSONB(raw json.RawMessage) json.RawMessage {
 	if len(raw) > 0 && json.Valid(raw) {
 		return raw
 	}
-	b, _ := json.Marshal(string(raw)) // always valid JSON (e.g. "" or "I can't help with that")
+	b, _ := json.Marshal(string(raw)) // always valid JSON
 	return b
 }

@@ -52,6 +52,12 @@ func TestStratifiedPopulation(t *testing.T) {
 
 	q := New(tx)
 
+	// freeze scans the whole artifacts table, so clear it first — this test should
+	// only see its own seeds. Rolled back with the tx.
+	if _, err := tx.Exec(ctx, "TRUNCATE artifacts CASCADE"); err != nil {
+		t.Fatalf("truncate artifacts: %v", err)
+	}
+
 	cutoff := time.Now()
 	// eligible
 	before := cutoff.Add(-time.Hour)
@@ -87,7 +93,7 @@ func TestStratifiedPopulation(t *testing.T) {
 		PopulationID:    popID,
 		ArtifactsCutoff: pgtype.Timestamptz{Time: cutoff, Valid: true},
 		MinHoursPlayed:  1,
-		PerGameCap:      50,
+		PerGameCap:      2,
 	})
 	if err != nil {
 		t.Fatalf("freeze: %v", err)
@@ -111,7 +117,7 @@ func TestStratifiedPopulation(t *testing.T) {
 		PopulationID:    popID,
 		ArtifactsCutoff: pgtype.Timestamptz{Time: cutoff, Valid: true},
 		MinHoursPlayed:  1,
-		PerGameCap:      50,
+		PerGameCap:      2,
 	})
 
 	if err != nil {

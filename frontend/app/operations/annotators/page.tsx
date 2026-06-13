@@ -11,7 +11,7 @@ import {
     inputClass,
 } from "@/components/operations/form";
 import { useCreateAnnotator } from "@/hooks/useCreateAnnotator";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/utils";
 import type { AddAnnotatorInput, AnnotatorKind } from "@/lib/types";
 
 export default function AnnotatorsPage() {

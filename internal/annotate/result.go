@@ -2,9 +2,9 @@ package annotate
 
 import "encoding/json"
 
-// Detected is a pattern the model says it found. Code is a taxonomy meso code (e.g. PM-1).
-// Present and Confidence are optional: simpler prompts omit them, richer prompts return
-// one entry per pattern with present=false for the ones it ruled out.
+// Detected is a pattern the model reported. Code is a meso code (e.g. PM-1).
+// Present and Confidence are optional: simple prompts omit them; richer ones
+// emit one entry per pattern, present=false for those ruled out.
 type Detected struct {
 	Code        string   `json:"code"`
 	Evidence    string   `json:"evidence"`
@@ -13,10 +13,12 @@ type Detected struct {
 	Confidence  *float64 `json:"confidence"`
 }
 
+// Result is the whole parsed model answer, just the list of patterns it reported.
 type Result struct {
 	Patterns []Detected `json:"patterns"`
 }
 
+// Parse unmarshals a model reply into a Result. A bad body is the parse_error case.
 func Parse(raw json.RawMessage) (Result, error) {
 	var r Result
 

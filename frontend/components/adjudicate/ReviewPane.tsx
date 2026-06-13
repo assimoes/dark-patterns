@@ -16,9 +16,7 @@ export function ReviewPane({
     hovered: string | null;
     onHover: (code: string | null) => void;
 }) {
-    // Resolve the game from the live dashboard games (keyed by external game id), not the static mock
-    // list — a real review's gameId is a real external id the mock never knew, so the old static lookup
-    // fell back to its first entry ("World of Tanks") for every review.
+    // game from live dashboard games (by external id), not the static mock list — that fell back to "World of Tanks" for every real review.
     const dashboard = useDashboard();
     const g = dashboard.data?.games.find((x) => x.id === review.gameId);
     const color = g?.color ?? "#94a3b8";
