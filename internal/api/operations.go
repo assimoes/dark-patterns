@@ -13,6 +13,7 @@ import (
 	"github.com/assimoes/dsr/internal/annotate"
 	"github.com/assimoes/dsr/internal/api/dto"
 	"github.com/assimoes/dsr/internal/db"
+	"github.com/assimoes/dsr/internal/run"
 	"github.com/assimoes/dsr/internal/scrape"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -28,9 +29,9 @@ type addGameRequest struct {
 
 // createGame registers a game so it shows on the dashboard and can be scraped.
 func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
-	var req addGameRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "bad json body", err)
+
+	req, ok := decodeJSON[addGameRequest](s, w, r)
+	if !ok {
 		return
 	}
 
@@ -75,7 +76,7 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.writeJSON(w, http.StatusCreated, dto.Game{
-		ID:           gameID(req.ExternalGameID),
+		ID:           dto.GameID(req.ExternalGameID),
 		Name:         name,
 		Short:        short,
 		Monetization: monetization,
@@ -106,9 +107,8 @@ type annotatorResponse struct {
 func (s *Server) createAnnotator(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req addAnnotatorRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "bad json body", err)
+	req, ok := decodeJSON[addAnnotatorRequest](s, w, r)
+	if !ok {
 		return
 	}
 
@@ -209,9 +209,8 @@ type opsCriteria struct {
 func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req createPopulationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "bad json body", err)
+	req, ok := decodeJSON[createPopulationRequest](s, w, r)
+	if !ok {
 		return
 	}
 
@@ -323,9 +322,8 @@ type createRunResponse struct {
 func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req createRunRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "bad json body", err)
+	req, ok := decodeJSON[createRunRequest](s, w, r)
+	if !ok {
 		return
 	}
 
@@ -348,7 +346,7 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		taxVersion = 1
 	}
 
-	if err := s.validateRun(ctx, req.AnnotatorIDs, req.PopulationID, req.PromptID, taxVersion); err != nil {
+	if err := run.Validate(ctx, s.q, req.AnnotatorIDs, req.PopulationID, req.PromptID, taxVersion); err != nil {
 		s.writeError(w, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
@@ -385,58 +383,6 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// validateRun mirrors cmd/runs validate(): annotators must exist and be llm, the population must have
-// individuals, the prompt modality must be text or image, and the taxonomy version must have codes
-func (s *Server) validateRun(ctx context.Context, annotatorIDs []int32, populationID, promptID, taxVersion int32) error {
-	if len(annotatorIDs) > 0 {
-		rows, err := s.q.ListAnnotatorsByIDs(ctx, annotatorIDs)
-		if err != nil {
-			return fmt.Errorf("loading annotators %v: %w", annotatorIDs, err)
-		}
-
-		found := make(map[int32]db.Annotator, len(rows))
-		for _, a := range rows {
-			found[a.ID] = a
-		}
-
-		for _, id := range annotatorIDs {
-			a, ok := found[id]
-			if !ok {
-				return fmt.Errorf("annotator %d does not exist", id)
-			}
-			if a.Kind != "llm" || a.ModelID == nil {
-				return fmt.Errorf("annotator %d is not an llm annotator", id)
-			}
-		}
-	}
-
-	n, err := s.q.CountIndividuals(ctx, populationID)
-	if err != nil {
-		return fmt.Errorf("counting individuals for population %d: %w", populationID, err)
-	}
-	if n == 0 {
-		return fmt.Errorf("population %d has no individuals (curate it first)", populationID)
-	}
-
-	prompt, err := s.q.GetPrompt(ctx, promptID)
-	if err != nil {
-		return fmt.Errorf("loading prompt %d: %w", promptID, err)
-	}
-	if prompt.Modality != "text" && prompt.Modality != "image" {
-		return fmt.Errorf("prompt %d has unsupported modality %q", promptID, prompt.Modality)
-	}
-
-	codes, err := s.q.ListMesoPatternsByVersion(ctx, taxVersion)
-	if err != nil {
-		return fmt.Errorf("loading taxonomy version %d: %w", taxVersion, err)
-	}
-	if len(codes) == 0 {
-		return fmt.Errorf("taxonomy version %d has no codes", taxVersion)
-	}
-
-	return nil
-}
-
 // scrapeRequest is the body of POST /api/scrapes, same args as steam enqueue. App is the steam app id as a string.
 type scrapeRequest struct {
 	App    string `json:"app"`
@@ -447,9 +393,9 @@ type scrapeRequest struct {
 
 // createScrape enqueues the first scrape job for a game, exactly like the steam CLI
 func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
-	var req scrapeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "bad json body", err)
+
+	req, ok := decodeJSON[scrapeRequest](s, w, r)
+	if !ok {
 		return
 	}
 

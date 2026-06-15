@@ -1,5 +1,55 @@
 package dto
 
+import (
+	"strconv"
+
+	"github.com/assimoes/dsr/internal/db"
+)
+
+func NewGame(d db.GameDisplay) Game {
+	return Game{
+		ID:           GameID(d.ExternalGameID),
+		Name:         d.Name,
+		Short:        d.Short,
+		Monetization: d.Monetization,
+		Color:        d.DisplayColor,
+	}
+}
+
+func NewPopulationStat(d db.CountIndividualsPerGameRow) PopulationStat {
+	return PopulationStat{
+		GameID:      GameID(d.ExternalGameID),
+		Individuals: int(d.Individuals),
+	}
+}
+
+func NewMember(d db.ListMembersForRunRow) Member {
+	return Member{
+		Kind:  d.Kind,
+		Label: d.Label,
+	}
+}
+
+func NewReviewStat(d db.ReviewStatsPerGameRow) ReviewStat {
+	return ReviewStat{
+		GameID:    GameID(d.ExternalGameID),
+		RunID:     int(d.RunID),
+		Prompt:    d.Prompt,
+		Reviews:   int(d.Reviews),
+		Annotated: int(d.Annotated),
+	}
+}
+
+func NewRun(d db.ListRunsForDashboardRow, members []Member) Run {
+	return Run{
+		ID:         strconv.FormatInt(int64(d.ID), 10),
+		Label:      RunLabel(d.RunType, d.ID),
+		Population: d.Population,
+		CreatedAt:  RFC3339(d.CreatedAt),
+		Members:    members,
+	}
+}
+
 // Game is one curated Steam game with its presentation metadata.
 type Game struct {
 	ID           string `json:"id"`

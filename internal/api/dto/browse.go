@@ -1,5 +1,103 @@
 package dto
 
+import "github.com/assimoes/dsr/internal/db"
+
+func NewAnnotator(a db.ListAnnotatorsWithModelRow) Annotator {
+	return Annotator{
+		ID:    int(a.ID),
+		Kind:  a.Kind,
+		Label: a.Label,
+		Model: a.Model,
+	}
+}
+
+func NewPrompt(a db.ListPromptsRow) Prompt {
+	return Prompt{
+		ID:       int(a.ID),
+		Name:     a.Name,
+		Version:  int(a.Version),
+		Modality: a.Modality,
+	}
+}
+
+func NewPopulation(p db.ListPopulationsRow) Population {
+	return Population{
+		ID:          int(p.ID),
+		Label:       PopulationLabel(p.ID, p.Description),
+		Modality:    p.Modality,
+		Individuals: int(p.Individuals),
+		CreatedAt:   RFC3339(p.CreatedAt),
+	}
+}
+
+func NewPopulationGame(g db.PopulationPerGameRow, name string) PopulationGame {
+	return PopulationGame{
+		GameID:    GameID(g.ExternalGameID),
+		Name:      name,
+		Reviews:   int(g.Reviews),
+		Annotated: int(g.Annotated),
+	}
+}
+
+func NewPopulationRun(r db.Run) PopulationRun {
+	return PopulationRun{
+		ID:      int(r.ID),
+		Label:   RunLabel(r.RunType, r.ID),
+		RunType: r.RunType,
+	}
+}
+
+func NewPopulationDetail(p db.GetPopulationRow, perGame []PopulationGame, runs []PopulationRun) PopulationDetail {
+	return PopulationDetail{
+		ID:        int(p.ID),
+		Label:     PopulationLabel(p.ID, p.Description),
+		Modality:  p.Modality,
+		CreatedAt: RFC3339(p.CreatedAt),
+		PerGame:   perGame,
+		Runs:      runs,
+	}
+}
+
+func NewRunSummary(r db.ListRunsRow) RunSummary {
+	return RunSummary{
+		ID:              int(r.ID),
+		RunType:         r.RunType,
+		Label:           RunLabel(r.RunType, r.ID),
+		Population:      r.Population,
+		PopulationID:    int(r.PopulationID),
+		PromptID:        int(r.PromptID),
+		TaxonomyVersion: IntPtr(r.TaxonomyVersion),
+		CreatedAt:       RFC3339(r.CreatedAt),
+		PanelSize:       int(r.PanelSize),
+	}
+}
+
+func NewRunDetail(run db.Run, population string, panel []Member, hasSample bool) RunDetail {
+	return RunDetail{
+		ID:              int(run.ID),
+		RunType:         run.RunType,
+		Population:      population,
+		PopulationID:    int(run.PopulationID),
+		PromptID:        int(run.PromptID),
+		TaxonomyVersion: IntPtr(run.TaxonomyVersion),
+		CreatedAt:       RFC3339(run.CreatedAt),
+		Panel:           panel,
+		HasSample:       hasSample,
+	}
+}
+
+func NewGameSummary(d db.GameDisplay, reviews, annotated int) GameSummary {
+	return GameSummary{
+		ID:           GameID(d.ExternalGameID),
+		Name:         d.Name,
+		Short:        d.Short,
+		Monetization: d.Monetization,
+		Color:        d.DisplayColor,
+		Reviews:      reviews,
+		Annotated:    annotated,
+	}
+}
+
 // Population is one curated population as a pick-list row.
 type Population struct {
 	ID          int    `json:"id"`

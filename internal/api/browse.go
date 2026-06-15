@@ -11,24 +11,7 @@ import (
 
 // listPopulations returns every population as a pick-list row. GET /api/populations.
 func (s *Server) listPopulations(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.q.ListPopulations(r.Context())
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "load populations", err)
-		return
-	}
-
-	out := make([]dto.Population, 0, len(rows))
-	for _, p := range rows {
-		out = append(out, dto.Population{
-			ID:          int(p.ID),
-			Label:       populationLabel(p.ID, p.Description),
-			Modality:    p.Modality,
-			Individuals: int(p.Individuals),
-			CreatedAt:   rfc3339(p.CreatedAt),
-		})
-	}
-
-	s.writeJSON(w, http.StatusOK, out)
+	writeList(s, w, r, s.q.ListPopulations, "load populations", dto.NewPopulation)
 }
 
 // populationDetail returns one populations header, per-game breakdown, and the runs that worked it.
@@ -66,12 +49,7 @@ func (s *Server) populationDetail(w http.ResponseWriter, r *http.Request) {
 
 	perGame := make([]dto.PopulationGame, 0, len(perGameRows))
 	for _, g := range perGameRows {
-		perGame = append(perGame, dto.PopulationGame{
-			GameID:    gameID(g.ExternalGameID),
-			Name:      names[g.ExternalGameID],
-			Reviews:   int(g.Reviews),
-			Annotated: int(g.Annotated),
-		})
+		perGame = append(perGame, dto.NewPopulationGame(g, names[g.ExternalGameID]))
 	}
 
 	runRows, err := s.q.ListRunsByPopulation(ctx, pid)
@@ -82,90 +60,26 @@ func (s *Server) populationDetail(w http.ResponseWriter, r *http.Request) {
 
 	runs := make([]dto.PopulationRun, 0, len(runRows))
 	for _, rr := range runRows {
-		runs = append(runs, dto.PopulationRun{
-			ID:      int(rr.ID),
-			Label:   runLabel(rr.RunType, rr.ID),
-			RunType: rr.RunType,
-		})
+		runs = append(runs, dto.NewPopulationRun(rr))
 	}
 
-	s.writeJSON(w, http.StatusOK, dto.PopulationDetail{
-		ID:        int(pop.ID),
-		Label:     populationLabel(pop.ID, pop.Description),
-		Modality:  pop.Modality,
-		CreatedAt: rfc3339(pop.CreatedAt),
-		PerGame:   perGame,
-		Runs:      runs,
-	})
+	s.writeJSON(w, http.StatusOK, dto.NewPopulationDetail(pop, perGame, runs))
 }
 
 // listAnnotators returns every annotator as a form option (model name for llm, null for humans).
 // GET /api/annotators.
 func (s *Server) listAnnotators(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.q.ListAnnotatorsWithModel(r.Context())
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "load annotators", err)
-		return
-	}
-
-	out := make([]dto.Annotator, 0, len(rows))
-	for _, a := range rows {
-		out = append(out, dto.Annotator{
-			ID:    int(a.ID),
-			Kind:  a.Kind,
-			Label: a.Label,
-			Model: a.Model,
-		})
-	}
-
-	s.writeJSON(w, http.StatusOK, out)
+	writeList(s, w, r, s.q.ListAnnotatorsWithModel, "load annotators", dto.NewAnnotator)
 }
 
 // listPrompts returns every prompt as a form option. GET /api/prompts.
 func (s *Server) listPrompts(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.q.ListPrompts(r.Context())
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "load prompts", err)
-		return
-	}
-
-	out := make([]dto.Prompt, 0, len(rows))
-	for _, p := range rows {
-		out = append(out, dto.Prompt{
-			ID:       int(p.ID),
-			Name:     p.Name,
-			Version:  int(p.Version),
-			Modality: p.Modality,
-		})
-	}
-
-	s.writeJSON(w, http.StatusOK, out)
+	writeList(s, w, r, s.q.ListPrompts, "load prompts", dto.NewPrompt)
 }
 
 // listRuns returns every run with enough to recognise and pick it. GET /api/runs.
 func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.q.ListRuns(r.Context())
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "load runs", err)
-		return
-	}
-
-	out := make([]dto.RunSummary, 0, len(rows))
-	for _, rr := range rows {
-		out = append(out, dto.RunSummary{
-			ID:              int(rr.ID),
-			RunType:         rr.RunType,
-			Label:           runLabel(rr.RunType, rr.ID),
-			Population:      rr.Population,
-			PopulationID:    int(rr.PopulationID),
-			PromptID:        int(rr.PromptID),
-			TaxonomyVersion: intPtr(rr.TaxonomyVersion),
-			CreatedAt:       rfc3339(rr.CreatedAt),
-			PanelSize:       int(rr.PanelSize),
-		})
-	}
-
-	s.writeJSON(w, http.StatusOK, out)
+	writeList(s, w, r, s.q.ListRuns, "load runs", dto.NewRunSummary)
 }
 
 // runDetail returns one runs header, its frozen panel, and whether a sample was drawn. GET /api/runs/{runId}.
@@ -215,17 +129,7 @@ func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
 	// 	hasSample = false
 	// }
 
-	s.writeJSON(w, http.StatusOK, dto.RunDetail{
-		ID:              int(run.ID),
-		RunType:         run.RunType,
-		Population:      pop.Modality,
-		PopulationID:    int(run.PopulationID),
-		PromptID:        int(run.PromptID),
-		TaxonomyVersion: intPtr(run.TaxonomyVersion),
-		CreatedAt:       rfc3339(run.CreatedAt),
-		Panel:           panel,
-		HasSample:       hasSample,
-	})
+	s.writeJSON(w, http.StatusOK, dto.NewRunDetail(run, pop.Modality, panel, hasSample))
 }
 
 // listGames returns every curated game with its display metadata and review progress, joined by
@@ -254,15 +158,7 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	out := make([]dto.GameSummary, 0, len(displays))
 	for _, d := range displays {
 		st := stats[d.ExternalGameID]
-		out = append(out, dto.GameSummary{
-			ID:           gameID(d.ExternalGameID),
-			Name:         d.Name,
-			Short:        d.Short,
-			Monetization: d.Monetization,
-			Color:        d.DisplayColor,
-			Reviews:      st.reviews,
-			Annotated:    st.annotated,
-		})
+		out = append(out, dto.NewGameSummary(d, st.reviews, st.annotated))
 	}
 
 	s.writeJSON(w, http.StatusOK, out)
@@ -281,14 +177,4 @@ func (s *Server) gameNames(ctx context.Context) (map[int32]string, error) {
 	}
 
 	return names, nil
-}
-
-// intPtr maps a nullable *int32 to the *int the DTOs expose, preserving null.
-func intPtr(v *int32) *int {
-	if v == nil {
-		return nil
-	}
-
-	n := int(*v)
-	return &n
 }

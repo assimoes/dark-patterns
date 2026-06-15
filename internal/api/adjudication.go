@@ -240,7 +240,7 @@ func (s *Server) runAdjudicationSample(w http.ResponseWriter, r *http.Request) {
 	for _, rv := range rows {
 		reviews = append(reviews, dto.SampleReview{
 			ID:       strconv.FormatInt(rv.IndividualID, 10),
-			GameID:   gameID(rv.ExternalGameID),
+			GameID:   dto.GameID(rv.ExternalGameID),
 			Stratum:  rv.Stratum,
 			VotedUp:  rv.VotedUp,
 			Language: rv.Lang,
@@ -352,7 +352,7 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 
 	s.writeJSON(w, http.StatusOK, dto.AdjudicationReview{
 		ID:          strconv.FormatInt(individualID, 10),
-		GameID:      gameID(meta.ExternalGameID),
+		GameID:      dto.GameID(meta.ExternalGameID),
 		VotedUp:     meta.VotedUp,
 		Language:    meta.Lang,
 		Body:        meta.Body,
@@ -380,7 +380,7 @@ func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 
 	s.writeJSON(w, http.StatusOK, dto.BlindReview{
 		ID:       strconv.FormatInt(individualID, 10),
-		GameID:   gameID(meta.ExternalGameID),
+		GameID:   dto.GameID(meta.ExternalGameID),
 		VotedUp:  meta.VotedUp,
 		Language: meta.Lang,
 		Body:     meta.Body,

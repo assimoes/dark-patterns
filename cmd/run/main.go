@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/assimoes/dsr/internal/annotate"
 	"github.com/assimoes/dsr/internal/db"
+	"github.com/assimoes/dsr/internal/run"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -65,7 +65,7 @@ func main() {
 
 	// validate before inserting
 
-	if err := validate(ctx, q, annotatorIDs, int32(*populationID), int32(*promptID), int32(*taxVersion)); err != nil {
+	if err := run.Validate(ctx, q, annotatorIDs, int32(*populationID), int32(*promptID), int32(*taxVersion)); err != nil {
 		logger.Error("validation failed", "err", err)
 		os.Exit(1)
 	}
@@ -101,71 +101,6 @@ func main() {
 		"taxonomy_version", *taxVersion,
 		"temperature", *temperature,
 	)
-}
-
-// validate checks the run actually makes sense before we insert: annotators exist and are llms,
-// the population has individuals, the prompt exists with a supported modality, taxonomy has codes.
-func validate(ctx context.Context, q *db.Queries, annotatorIDs []int32, populationID, promptID, taxVersion int32) error {
-
-	// ensure annotators exist and are llms
-
-	if len(annotatorIDs) > 0 {
-		rows, err := q.ListAnnotatorsByIDs(ctx, annotatorIDs)
-		if err != nil {
-			return fmt.Errorf("loading annotators %v: %w", annotatorIDs, err)
-		}
-
-		found := make(map[int32]db.Annotator, len(rows))
-		for _, a := range rows {
-			found[a.ID] = a
-		}
-
-		for _, id := range annotatorIDs {
-			a, ok := found[id]
-
-			if !ok {
-				return fmt.Errorf("annotator %d does not exist", id)
-			}
-
-			if a.Kind != "llm" || a.ModelID == nil {
-				return fmt.Errorf("annotator %d is not an llm annotator", id)
-			}
-		}
-	}
-
-	// ensure population exists and has individuals
-	n, err := q.CountIndividuals(ctx, populationID)
-	if err != nil {
-		return fmt.Errorf("counting individuals for population %d: %w", populationID, err)
-	}
-
-	if n == 0 {
-		return fmt.Errorf("population %d has no individuals (did you curate it? use the curate cli)", populationID)
-	}
-
-	// ensure prompt exists
-	prompt, err := q.GetPrompt(ctx, promptID)
-	if err != nil {
-		return fmt.Errorf("loading prompt %d: %w", promptID, err)
-	}
-
-	if prompt.Modality != "text" && prompt.Modality != "image" {
-		return fmt.Errorf("prompt %d has unsupported modality %q", promptID, prompt.Modality)
-	}
-
-	// ensure the taxonomy has codes
-	codes, err := q.ListMesoPatternsByVersion(ctx, taxVersion)
-	if err != nil {
-		return fmt.Errorf("loading taxonomy version %d: %w", taxVersion, err)
-	}
-
-	if len(codes) == 0 {
-		return fmt.Errorf("taxonomy version %d has no codes", taxVersion)
-	}
-
-	_ = annotate.LoadTaxonomy
-
-	return nil
 }
 
 // parseAnnotatorsIDs splits the comma list of annotator ids into int32s, skipping blanks. empty

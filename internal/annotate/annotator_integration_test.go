@@ -6,8 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"text/template"
 	"testing"
+	"text/template"
 
 	"github.com/assimoes/dsr/internal/db"
 	"github.com/jackc/pgx/v5/pgxpool"
