@@ -17,6 +17,11 @@ func seedPanelRun(t *testing.T, pool *pgxpool.Pool, annotatorIDs []int32) (db.Ru
 	ctx := context.Background()
 	q := db.New(pool)
 
+	// shared db: clear this test's footprint before seeding so a crashed prior run cannot leak the fixed
+	// prompt name into our unique (name, version). the t.Cleanup below clears this run again after.
+	cleanPanelTestData(ctx, pool, t.Name())
+	t.Cleanup(func() { cleanPanelTestData(context.Background(), pool, t.Name()) })
+
 	var popID int32
 	if err := pool.QueryRow(ctx,
 		`INSERT INTO populations (modality, description, artifacts_cutoff)
@@ -40,14 +45,6 @@ func seedPanelRun(t *testing.T, pool *pgxpool.Pool, annotatorIDs []int32) (db.Ru
 		t.Fatalf("run: %v", err)
 	}
 
-	t.Cleanup(func() {
-		c := context.Background()
-		_, _ = pool.Exec(c, `DELETE FROM run_annotators WHERE run_id=$1`, runID)
-		_, _ = pool.Exec(c, `DELETE FROM runs WHERE id=$1`, runID)
-		_, _ = pool.Exec(c, `DELETE FROM prompts WHERE id=$1`, promptID)
-		_, _ = pool.Exec(c, `DELETE FROM populations WHERE id=$1`, popID)
-	})
-
 	run, err := q.GetRun(ctx, runID)
 	if err != nil {
 		t.Fatalf("get run: %v", err)
@@ -57,6 +54,20 @@ func seedPanelRun(t *testing.T, pool *pgxpool.Pool, annotatorIDs []int32) (db.Ru
 		t.Fatalf("get prompt: %v", err)
 	}
 	return run, prompt
+}
+
+// cleanPanelTestData removes the run, population, and prompt seedPanelRun writes for one test, keyed on
+// the fixed population description and the per-test prompt name. fk-safe order, errors ignored so a
+// clean db is a no-op.
+func cleanPanelTestData(ctx context.Context, pool *pgxpool.Pool, testName string) {
+	exec := func(sql string, args ...any) { _, _ = pool.Exec(ctx, sql, args...) }
+
+	exec(`DELETE FROM run_annotators ra USING runs r, populations p
+	      WHERE ra.run_id = r.id AND r.population_id = p.id AND p.description = 'panel-it'`)
+	exec(`DELETE FROM runs r USING populations p
+	      WHERE r.population_id = p.id AND p.description = 'panel-it'`)
+	exec(`DELETE FROM populations WHERE description = 'panel-it'`)
+	exec(`DELETE FROM prompts WHERE name = $1 AND version = 1`, "panel-it-"+testName)
 }
 
 // fakeLLMRegistry maps every seeded llm slug to a fake so SnapshotPanel can resolve each.

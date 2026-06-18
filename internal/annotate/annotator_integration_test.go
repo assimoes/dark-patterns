@@ -37,6 +37,12 @@ func seedRun(t *testing.T, pool *pgxpool.Pool) (db.Run, db.Prompt, []int64) {
 	t.Helper()
 	ctx := context.Background()
 
+	// the integration db is shared, so this test owns a fixed footprint (the sentinel game id and its
+	// named rows). clear it before seeding so a leftover from a crashed run does not collide, and clear
+	// it again after via t.Cleanup, which runs even when the test fails.
+	cleanSnapshotTestData(ctx, pool)
+	t.Cleanup(func() { cleanSnapshotTestData(context.Background(), pool) })
+
 	q := db.New(pool)
 
 	var popID int32
@@ -121,19 +127,6 @@ func seedRun(t *testing.T, pool *pgxpool.Pool) (db.Run, db.Prompt, []int64) {
 		t.Fatalf("run: %v", err)
 	}
 
-	// t.Cleanup(func() {
-	// 	c := context.Background()
-
-	// 	_, _ = pool.Exec(c, `DELETE FROM annotation_patterns ap USING annotations an WHERE ap.annotation_id = an.id AND an.run_id = $1`, runID)
-	// 	_, _ = pool.Exec(c, `DELETE FROM annotations where run_id = $1`, runID)
-	// 	_, _ = pool.Exec(c, `DELETE FROM run_annotators where run_id = $1`, runID)
-	// 	_, _ = pool.Exec(c, `DELETE FROM runs where id = $1`, runID)
-	// 	_, _ = pool.Exec(c, `DELETE FROM individuals where population_id = $1`, popID)
-	// 	_, _ = pool.Exec(c, `DELETE FROM text_review_details td USING artifacts a WHERE td.artifact_id = a.id AND a.external_game_id = $1`, testGameID)
-	// 	_, _ = pool.Exec(c, `DELETE FROM artifacts where external_game_id = $1`, testGameID)
-	// 	_, _ = pool.Exec(c, `DELETE FROM populations where id = $1`, popID)
-	// 	_, _ = pool.Exec(c, `DELETE FROM prompts where id = $1`, promptID)
-	// })
 
 	run, err := q.GetRun(ctx, runID)
 	if err != nil {
@@ -146,6 +139,31 @@ func seedRun(t *testing.T, pool *pgxpool.Pool) (db.Run, db.Prompt, []int64) {
 	}
 
 	return run, prompt, indIDs
+}
+
+// cleanSnapshotTestData removes everything seedRun writes, in foreign-key-safe order: children before
+// parents, keyed on the sentinel game id and the test's named rows. errors are ignored so a clean run
+// against an already-empty db is a no-op. the model row is left alone, UpsertModel is idempotent.
+func cleanSnapshotTestData(ctx context.Context, pool *pgxpool.Pool) {
+	exec := func(sql string, args ...any) { _, _ = pool.Exec(ctx, sql, args...) }
+
+	exec(`DELETE FROM annotation_patterns ap USING annotations an, individuals i, artifacts a
+	      WHERE ap.annotation_id = an.id AND an.individual_id = i.id AND i.artifact_id = a.id
+	        AND a.external_game_id = $1`, testGameID)
+	exec(`DELETE FROM annotations an USING individuals i, artifacts a
+	      WHERE an.individual_id = i.id AND i.artifact_id = a.id AND a.external_game_id = $1`, testGameID)
+	exec(`DELETE FROM run_annotators ra USING runs r, populations p
+	      WHERE ra.run_id = r.id AND r.population_id = p.id AND p.description = 'annotate-it-test'`)
+	exec(`DELETE FROM runs r USING populations p
+	      WHERE r.population_id = p.id AND p.description = 'annotate-it-test'`)
+	exec(`DELETE FROM individuals i USING artifacts a
+	      WHERE i.artifact_id = a.id AND a.external_game_id = $1`, testGameID)
+	exec(`DELETE FROM text_review_details td USING artifacts a
+	      WHERE td.artifact_id = a.id AND a.external_game_id = $1`, testGameID)
+	exec(`DELETE FROM artifacts WHERE external_game_id = $1`, testGameID)
+	exec(`DELETE FROM populations WHERE description = 'annotate-it-test'`)
+	exec(`DELETE FROM prompts WHERE name = 'p2w-it' AND version = 1`)
+	exec(`DELETE FROM annotators WHERE label = 'test-model rater'`)
 }
 
 func TestSnapshotAndAnnotate(t *testing.T) {
