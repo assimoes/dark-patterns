@@ -1,6 +1,20 @@
 package adjudicate
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/assimoes/dsr/internal/db"
+)
+
+func NewPanelVerdict(v db.ListPanelVotesForCellRow) PanelVerdict {
+	return PanelVerdict{
+		AnnotatorID: v.AnnotatorID,
+		ModelSlug:   v.ModelSlug,
+		Present:     v.Present,
+		Evidence:    v.Evidence,
+		Explanation: v.Evidence,
+	}
+}
 
 // PanelVerdict is one panel raters verdict on one cell, frozen at decision time.
 type PanelVerdict struct {

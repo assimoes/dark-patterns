@@ -312,12 +312,7 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 
 	detections := make([]dto.Detection, 0, len(dets))
 	for _, d := range dets {
-		detections = append(detections, dto.Detection{
-			PatternCode: codeByID[d.PatternID],
-			Model:       d.ModelSlug,
-			Evidence:    d.Evidence,
-			Explanation: d.Explanation,
-		})
+		detections = append(detections, dto.NewDetection(codeByID[d.PatternID], d))
 	}
 
 	// panel model list lets the frontend infer Absent (model with no detection row on a pattern)
@@ -593,13 +588,7 @@ func (s *Server) buildSeed(ctx context.Context, q db.Querier, panelRun int32, in
 
 	votes := make([]adjudicate.PanelVerdict, 0, len(perRater))
 	for _, v := range perRater {
-		votes = append(votes, adjudicate.PanelVerdict{
-			AnnotatorID: v.AnnotatorID,
-			ModelSlug:   v.ModelSlug,
-			Present:     v.Present,
-			Evidence:    v.Evidence,
-			Explanation: v.Explanation,
-		})
+		votes = append(votes, adjudicate.NewPanelVerdict(v))
 	}
 
 	return adjudicate.PanelSeed{

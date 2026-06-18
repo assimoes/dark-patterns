@@ -1,5 +1,7 @@
 package dto
 
+import "github.com/assimoes/dsr/internal/db"
+
 // DecisionsRequest is the body of POST /api/reviews/{reviewId}/decisions: pattern code -> "present" |
 // "absent". Keying by code, not row id, keeps the frontend free of database ids.
 type DecisionsRequest struct {
@@ -45,6 +47,15 @@ type SampleResponse struct {
 	SampleID  int64          `json:"sampleId"`
 	GoldRunID int32          `json:"goldRunId"`
 	Reviews   []SampleReview `json:"reviews"`
+}
+
+func NewDetection(patternCode string, v db.ListReviewDetectionsRow) Detection {
+	return Detection{
+		PatternCode: patternCode,
+		Model:       v.ModelSlug,
+		Evidence:    v.Evidence,
+		Explanation: v.Explanation,
+	}
 }
 
 // Detection is one panel models positive call on a pattern, with its own evidence and explanation.
