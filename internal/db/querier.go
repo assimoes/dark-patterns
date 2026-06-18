@@ -105,7 +105,8 @@ type Querier interface {
 	ListPopulationsForGame(ctx context.Context, externalGameID int32) ([]ListPopulationsForGameRow, error)
 	// Every prompt as a form option: its id, name, version and modality. Ordered by id for a stable list.
 	ListPrompts(ctx context.Context) ([]ListPromptsRow, error)
-	// Existing gold labels for one review, to pre-fill the checkboxes on revisit.
+	// Existing gold labels for one review in one pass, to pre-fill the checkboxes on revisit. the blind
+	// read asks for pass='blind' so it never sees the open-pass labels, and the other way round.
 	ListReviewAdjudications(ctx context.Context, arg ListReviewAdjudicationsParams) ([]ListReviewAdjudicationsRow, error)
 	// Every panel member's detection for one review, across all patterns: who flagged what, with their
 	// evidence and explanation. annotation_patterns holds positives only, so a row means that model
@@ -121,9 +122,10 @@ type Querier interface {
 	// annotator_ids is the panel the run pinned; members are resolved separately per run.
 	ListRunsForDashboard(ctx context.Context) ([]ListRunsForDashboardRow, error)
 	// The queue for a sample: each selected review with the text/vote/language to render and a `decided`
-	// count of how many of its patterns already have a gold label in the sample's gold run. Joining the
-	// per-review adjudication count in SQL keeps the worklist's progress one query, not N.
-	ListSampleReviews(ctx context.Context, sampleID int64) ([]ListSampleReviewsRow, error)
+	// count of how many of its patterns already have a gold label in the sample's gold run, for the pass
+	// the screen is on. the open and blind worklists pass their own pass so each shows its own progress.
+	// Joining the per-review adjudication count in SQL keeps the worklist's progress one query, not N.
+	ListSampleReviews(ctx context.Context, arg ListSampleReviewsParams) ([]ListSampleReviewsRow, error)
 	// The full MESO codebook for a version: code, name, definition, and the family it sits under.
 	ListTaxonomy(ctx context.Context, version int32) ([]ListTaxonomyRow, error)
 	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
@@ -158,7 +160,8 @@ type Querier interface {
 	// Freeze one panel member
 	SnapshotRunAnnotator(ctx context.Context, arg SnapshotRunAnnotatorParams) error
 	// Re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
-	// the panel seed at the new decision time.
+	// the panel seed at the new decision time. pass keeps the open and blind labels for a cell apart, so
+	// saving one never touches the other.
 	UpsertAdjudication(ctx context.Context, arg UpsertAdjudicationParams) error
 	// Idempotent. The WHERE guard means an already completed annotation is not touched
 	// Returning yields no rows in this case, and the worker treats it as already done

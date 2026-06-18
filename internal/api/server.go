@@ -3,6 +3,7 @@ package api
 import (
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/assimoes/dsr/internal/db"
 	"github.com/jackc/pgx/v5"
@@ -66,7 +67,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/reviews/{reviewId}/adjudication", s.reviewAdjudication)
 	mux.HandleFunc("GET /api/reviews/{reviewId}/blind", s.reviewBlind)
 
-	return s.withCORS(mux)
+	return s.withCORS(s.withLogging(mux))
 }
 
 // withCORS lets the configured dev origin call the API cross-origin and answers preflight OPTIONS.
@@ -82,5 +83,36 @@ func (s *Server) withCORS(h http.Handler) http.Handler {
 		}
 
 		h.ServeHTTP(w, r)
+	})
+}
+
+// statusRecorder remembers the status code a handler wrote so the logger can report it. http keeps it
+// hidden once written, so we capture it on the way out.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+// withLogging prints one line per request: method, path, status and how long it took. handlers that
+// never call WriteHeader still come out as 200, which is what net/http sends.
+func (s *Server) withLogging(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+
+		h.ServeHTTP(rec, r)
+
+		s.logger.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"query", r.URL.RawQuery,
+			"status", rec.status,
+			"ms", time.Since(start).Milliseconds(),
+		)
 	})
 }

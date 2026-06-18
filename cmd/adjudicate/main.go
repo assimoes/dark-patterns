@@ -264,7 +264,7 @@ func (a *api) handleReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	adjs, _ := a.q.ListReviewAdjudications(ctx, db.ListReviewAdjudicationsParams{
-		RunID: goldRun, IndividualID: ind,
+		RunID: goldRun, IndividualID: ind, Pass: "open",
 	})
 
 	gold := map[int32]bool{}
@@ -375,6 +375,7 @@ func (a *api) handleReviewDecisions(w http.ResponseWriter, r *http.Request) {
 			Direction:               direction,
 			AdjudicatorID:           a.auditor,
 			PanelSeedAtAdjudication: seed.JSON(),
+			Pass:                    "open",
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -498,6 +499,7 @@ func (a *api) handleDecision(w http.ResponseWriter, r *http.Request) {
 		Direction:               direction,
 		AdjudicatorID:           a.auditor,
 		PanelSeedAtAdjudication: seed.JSON(),
+		Pass:                    "open",
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

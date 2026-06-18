@@ -8,6 +8,8 @@ import (
 	"flag"
 	"log/slog"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/assimoes/dsr/internal/db"
@@ -15,12 +17,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// criteria is the population recipe, stored as json on the row so we can see how it was built.
+// criteria is the population recipe, stored as json on the row so we can see how it was built. game_ids
+// is empty when every game is in scope, and lists the picked external ids otherwise.
 type criteria struct {
 	Modality        string    `json:"modality"`
 	MinHoursPlayed  int32     `json:"min_hours_played"`
 	PerGameCap      int       `json:"per_game_cap"`
 	ArtifactsCutoff time.Time `json:"artifacts_cutoff"`
+	GameIDs         []int32   `json:"game_ids,omitempty"`
 }
 
 func main() {
@@ -31,9 +35,16 @@ func main() {
 		minHours = flag.Int("min-hours", 1, "minimum hours_played")
 		perGame  = flag.Int("per-game", 50, "max individuals per game (stratification cap)")
 		cutoff   = flag.String("cutoff", "", "artifacts_cutoff RFC3339; empty = now()")
+		games    = flag.String("games", "", "comma-separated external game ids to include; empty = all games")
 	)
 
 	flag.Parse()
+
+	gameIDs, err := parseGameIDs(*games)
+	if err != nil {
+		logger.Error("invalid -games (want comma-separated ints)", "err", err)
+		os.Exit(2)
+	}
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -68,6 +79,7 @@ func main() {
 		MinHoursPlayed:  int32(*minHours),
 		PerGameCap:      *perGame,
 		ArtifactsCutoff: cut,
+		GameIDs:         gameIDs,
 	}
 
 	critJSON, err := json.Marshal(crit)
@@ -95,6 +107,7 @@ func main() {
 		ArtifactsCutoff: pgtype.Timestamptz{Time: cut, Valid: true},
 		MinHoursPlayed:  int32(*minHours),
 		PerGameCap:      int32(*perGame),
+		GameIds:         gameIDs,
 	})
 	if err != nil {
 		logger.Error("freeze population", "err", err)
@@ -112,6 +125,33 @@ func main() {
 		"population_id", popID,
 		"inserted", inserted,
 		"individuals", total,
+		"games", len(gameIDs),
 		"cutoff", cut.Format(time.RFC3339))
 
+}
+
+// parseGameIDs splits the comma list of external game ids into int32s, skipping blanks. an empty string
+// means no filter, every game is in scope.
+func parseGameIDs(csv string) ([]int32, error) {
+	csv = strings.TrimSpace(csv)
+	if csv == "" {
+		return nil, nil
+	}
+
+	var ids []int32
+	for _, f := range strings.Split(csv, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+
+		n, err := strconv.Atoi(f)
+		if err != nil {
+			return nil, err
+		}
+
+		ids = append(ids, int32(n))
+	}
+
+	return ids, nil
 }

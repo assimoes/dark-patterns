@@ -317,8 +317,9 @@ LIMIT 1;
  
 -- name: ListSampleReviews :many
 -- The queue for a sample: each selected review with the text/vote/language to render and a `decided`
--- count of how many of its patterns already have a gold label in the sample's gold run. Joining the
--- per-review adjudication count in SQL keeps the worklist's progress one query, not N.
+-- count of how many of its patterns already have a gold label in the sample's gold run, for the pass
+-- the screen is on. the open and blind worklists pass their own pass so each shows its own progress.
+-- Joining the per-review adjudication count in SQL keeps the worklist's progress one query, not N.
 SELECT
     it.individual_id,
     it.external_game_id,
@@ -330,6 +331,7 @@ SELECT
         FROM adjudications adj
         WHERE adj.run_id = s.gold_run_id
             AND adj.individual_id = it.individual_id
+            AND adj.pass = sqlc.arg(pass)
     ) AS decided
 FROM adjudication_sample_items it
 JOIN adjudication_samples s ON s.id = it.sample_id

@@ -20,6 +20,7 @@ type Adjudication struct {
 	AdjudicatorID           int32              `json:"adjudicator_id"`
 	PanelSeedAtAdjudication json.RawMessage    `json:"panel_seed_at_adjudication"`
 	DecidedAt               pgtype.Timestamptz `json:"decided_at"`
+	Pass                    string             `json:"pass"`
 }
 
 type AdjudicationSample struct {

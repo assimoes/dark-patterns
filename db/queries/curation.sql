@@ -35,6 +35,9 @@ FROM (
     WHERE a.modality = 'text'
         AND a.scraped_at <= @artifacts_cutoff
         AND td.hours_played >= @min_hours_played::int
+        -- an empty or null game list means all games, otherwise keep only the picked ones. coalesce so
+        -- a null array reads as 0, same as empty, instead of dropping every row.
+        AND (coalesce(cardinality(@game_ids::int[]), 0) = 0 OR a.external_game_id = ANY(@game_ids::int[]))
 ) ranked
 WHERE ranked.rn <= @per_game_cap::int
 ON CONFLICT (population_id, artifact_id) DO NOTHING;

@@ -183,11 +183,13 @@ func (s *Server) createAnnotator(w http.ResponseWriter, r *http.Request) {
 }
 
 // createPopulationRequest is the body of POST /api/populations, same knobs the curate CLI takes.
+// gameIds is empty for all games, or the picked external ids to restrict the freeze to.
 type createPopulationRequest struct {
-	Description     string `json:"description"`
-	MinHoursPlayed  int    `json:"min_hours_played"`
-	PerGameCap      int    `json:"per_game_cap"`
-	ArtifactsCutoff string `json:"artifacts_cutoff"`
+	Description     string  `json:"description"`
+	MinHoursPlayed  int     `json:"min_hours_played"`
+	PerGameCap      int     `json:"per_game_cap"`
+	ArtifactsCutoff string  `json:"artifacts_cutoff"`
+	GameIDs         []int32 `json:"game_ids"`
 }
 
 // createPopulationResponse is the 201 body: the new id, how many rows the freeze inserted, and the running total.
@@ -203,6 +205,7 @@ type opsCriteria struct {
 	MinHoursPlayed  int32     `json:"min_hours_played"`
 	PerGameCap      int       `json:"per_game_cap"`
 	ArtifactsCutoff time.Time `json:"artifacts_cutoff"`
+	GameIDs         []int32   `json:"game_ids,omitempty"`
 }
 
 // createPopulation creates a population, freezes a stratified sample into it, and reports the size.
@@ -238,6 +241,7 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 		MinHoursPlayed:  int32(minHours),
 		PerGameCap:      perGame,
 		ArtifactsCutoff: cut,
+		GameIDs:         req.GameIDs,
 	})
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "marshal criteria", err)
@@ -274,6 +278,7 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 		ArtifactsCutoff: pgtype.Timestamptz{Time: cut, Valid: true},
 		MinHoursPlayed:  int32(minHours),
 		PerGameCap:      int32(perGame),
+		GameIds:         req.GameIDs,
 	})
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "freeze population", err)

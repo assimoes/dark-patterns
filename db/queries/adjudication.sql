@@ -67,11 +67,12 @@ ORDER BY an.annotator_id;
 
 -- name: UpsertAdjudication :exec
 -- Re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
--- the panel seed at the new decision time.
+-- the panel seed at the new decision time. pass keeps the open and blind labels for a cell apart, so
+-- saving one never touches the other.
 INSERT INTO adjudications (
-    run_id, individual_id, pattern_id, final_label, direction, adjudicator_id, panel_seed_at_adjudication
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (run_id, individual_id, pattern_id) DO UPDATE
+    run_id, individual_id, pattern_id, final_label, direction, adjudicator_id, panel_seed_at_adjudication, pass
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (run_id, individual_id, pattern_id, pass) DO UPDATE
 SET final_label = excluded.final_label,
     direction = excluded.direction,
     adjudicator_id = excluded.adjudicator_id,
@@ -118,10 +119,11 @@ WHERE run_id = sqlc.arg(panel_run_id)
     AND status = 'completed';
 
 -- name: ListReviewAdjudications :many
--- Existing gold labels for one review, to pre-fill the checkboxes on revisit.
+-- Existing gold labels for one review in one pass, to pre-fill the checkboxes on revisit. the blind
+-- read asks for pass='blind' so it never sees the open-pass labels, and the other way round.
 SELECT pattern_id, final_label
 FROM adjudications
-WHERE run_id = sqlc.arg(run_id) AND individual_id = sqlc.arg(individual_id);
+WHERE run_id = sqlc.arg(run_id) AND individual_id = sqlc.arg(individual_id) AND pass = sqlc.arg(pass);
 
 -- name: CountAdjudicationsPerReview :many
 -- gold run: how many patterns are decided per review, to show progress on the worklist.

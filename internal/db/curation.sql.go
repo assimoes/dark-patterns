@@ -77,8 +77,11 @@ FROM (
     WHERE a.modality = 'text'
         AND a.scraped_at <= $2
         AND td.hours_played >= $3::int
+        -- an empty or null game list means all games, otherwise keep only the picked ones. coalesce so
+        -- a null array reads as 0, same as empty, instead of dropping every row.
+        AND (coalesce(cardinality($4::int[]), 0) = 0 OR a.external_game_id = ANY($4::int[]))
 ) ranked
-WHERE ranked.rn <= $4::int
+WHERE ranked.rn <= $5::int
 ON CONFLICT (population_id, artifact_id) DO NOTHING
 `
 
@@ -86,6 +89,7 @@ type FreezeStratifiedPopulationParams struct {
 	PopulationID    int32              `json:"population_id"`
 	ArtifactsCutoff pgtype.Timestamptz `json:"artifacts_cutoff"`
 	MinHoursPlayed  int32              `json:"min_hours_played"`
+	GameIds         []int32            `json:"game_ids"`
 	PerGameCap      int32              `json:"per_game_cap"`
 }
 
@@ -94,6 +98,7 @@ func (q *Queries) FreezeStratifiedPopulation(ctx context.Context, arg FreezeStra
 		arg.PopulationID,
 		arg.ArtifactsCutoff,
 		arg.MinHoursPlayed,
+		arg.GameIds,
 		arg.PerGameCap,
 	)
 	if err != nil {

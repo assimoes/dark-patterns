@@ -4,11 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
-// Blind read for the review currently open in the blind worklist 
-export function useReviewBlind(reviewId: string, enabled: boolean) {
+// Blind read for the review currently open in the blind worklist
+export function useReviewBlind(reviewId: string, panelRunId: string, enabled: boolean) {
     return useQuery({
-        queryKey: qk.reviewBlind(reviewId),
-        queryFn: () => api.adjudication.reviewBlind(reviewId),
+        queryKey: qk.reviewBlind(reviewId, panelRunId),
+        queryFn: () => api.adjudication.reviewBlind(reviewId, panelRunId),
         enabled,
     });
 }

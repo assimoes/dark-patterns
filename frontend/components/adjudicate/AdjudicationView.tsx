@@ -31,7 +31,7 @@ import { PatternCard } from "./PatternCard";
 // Adjudication screen gated on a run and its persisted sample
 export function AdjudicationView() {
     const [runId, setRunId] = useState("");
-    const sample = useRunAdjudicationSample(runId, runId !== "");
+    const sample = useRunAdjudicationSample(runId, "open", runId !== "");
 
     const noSample =
         sample.isError && sample.error instanceof ApiError && sample.error.status === 404;
@@ -134,7 +134,7 @@ function SampleWorklist({
     );
 
     // runId scopes the write to the same panel run (so same gold run + taxonomy version) the screen is reading.
-    const submit = useSubmitDecisions(current.id, runId);
+    const submit = useSubmitDecisions(current.id, runId, "open");
 
     const keyOf = (code: string) => `${current.id}:${code}`;
 

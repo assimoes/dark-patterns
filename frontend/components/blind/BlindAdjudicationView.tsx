@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Eraser, EyeOff, Inbox, Save } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCheck, Eraser, EyeOff, Inbox, Save } from "lucide-react";
 import { assignColors, splitBySpans } from "@/lib/highlight";
 import { codebook } from "@/lib/codebook";
 import { type Decision } from "@/lib/adjudication";
@@ -18,7 +18,8 @@ import { BlindPatternCard } from "./BlindPatternCard";
 // blind screen: same sample/persistence as adjudication, but reviews read via the blind endpoint (text only, no panel data).
 export function BlindAdjudicationView() {
     const [runId, setRunId] = useState("");
-    const sample = useRunAdjudicationSample(runId, runId !== "");
+
+    const sample = useRunAdjudicationSample(runId, "blind", runId !== "");
 
     const noSample =
         sample.isError && sample.error instanceof ApiError && sample.error.status === 404;
@@ -96,7 +97,9 @@ export function BlindAdjudicationView() {
 // mounted only with a non-empty sample so the per-review hook runs unconditionally. owns position, decisions, cited evidence, capture, persistence.
 function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: string }) {
     const reviews = sample.reviews;
-    const [idx, setIdx] = useState(0);
+    const firstIncompleteIdx = reviews.findIndex(f => f.decided === 0)
+
+    const [idx, setIdx] = useState(firstIncompleteIdx === -1 ? 0 : firstIncompleteIdx);
     const [decisions, setDecisions] = useState<Record<string, Decision>>({});
     const [evidence, setEvidence] = useState<Record<string, string>>({});
     const [capturing, setCapturing] = useState<string | null>(null);
@@ -104,13 +107,35 @@ function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: s
     const [hovered, setHovered] = useState<string | null>(null);
 
     const current: SampleReview = reviews[idx];
-    const detail = useReviewBlind(current.id, true);
+    const detail = useReviewBlind(current.id, runId, true);
     const review: BlindReviewData | undefined = detail.data;
 
     const keyOf = (code: string) => `${current.id}:${code}`;
     const total = codebook.length;
 
-    const submit = useSubmitDecisions(current.id, runId);
+    // the auditors saved labels for this review, mapped to present/absent so the cards pre-fill on revisit.
+    const goldDecisions = useMemo<Record<string, Decision>>(() => {
+        const out: Record<string, Decision> = {};
+        if (!review) return out;
+        for (const [code, isPresent] of Object.entries(review.goldLabels)) {
+            out[code] = isPresent ? "present" : "absent";
+        }
+        return out;
+    }, [review]);
+
+    // effective decision: the local call if there is one, else the saved label, so a reopened review keeps its state.
+    const effective = (code: string): Decision | undefined =>
+        decisions[keyOf(code)] ?? goldDecisions[code];
+
+    const submit = useSubmitDecisions(current.id, runId, "blind");
+
+    const absentAll = () =>
+        setDecisions((prev) => {
+            const next = { ...prev }
+            for (const p of codebook) next[keyOf(p.code)] = "absent"
+            return next;
+        });
+
 
     // Spans to underline: only patterns the labeller marked present AND cited.
     const { segments, colors } = useMemo(() => {
@@ -118,17 +143,17 @@ function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: s
         const cited = codebook
             .filter(
                 (p) =>
-                    decisions[`${current.id}:${p.code}`] === "present" &&
+                    effective(p.code) === "present" &&
                     evidence[`${current.id}:${p.code}`],
             )
             .map((p) => ({ code: p.code, text: evidence[`${current.id}:${p.code}`]! }));
         const cols = assignColors(cited.map((c) => c.code));
         const spans = cited.map((c) => ({ text: c.text, code: c.code, color: cols[c.code] }));
         return { segments: splitBySpans(review.body, spans), colors: cols };
-    }, [review, current.id, decisions, evidence]);
+    }, [review, current.id, decisions, goldDecisions, evidence]);
 
-    const decided = codebook.filter((p) => decisions[keyOf(p.code)] !== undefined).length;
-    const present = codebook.filter((p) => decisions[keyOf(p.code)] === "present").length;
+    const decided = codebook.filter((p) => effective(p.code) !== undefined).length;
+    const present = codebook.filter((p) => effective(p.code) === "present").length;
 
     const clearEvidence = (code: string) =>
         setEvidence((prev) => {
@@ -195,7 +220,7 @@ function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: s
     const decisionsForReview = (): Record<string, Decision> => {
         const out: Record<string, Decision> = {};
         for (const p of codebook) {
-            const d = decisions[keyOf(p.code)];
+            const d = effective(p.code);
             if (d !== undefined) out[p.code] = d;
         }
         return out;
@@ -266,6 +291,13 @@ function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: s
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
+                                    onClick={absentAll}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-slate-700"
+                                >
+                                    <CheckCheck className="size-4" /> All absent
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={save}
                                     disabled={submit.isPending || decided === 0}
                                     className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -292,7 +324,7 @@ function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: s
                             <BlindPatternCard
                                 key={pattern.code}
                                 pattern={pattern}
-                                decision={decisions[keyOf(pattern.code)]}
+                                decision={effective(pattern.code)}
                                 evidence={evidence[keyOf(pattern.code)]}
                                 capturing={capturing === pattern.code}
                                 evidenceColor={colors[pattern.code]}

@@ -760,15 +760,21 @@ SELECT
         FROM adjudications adj
         WHERE adj.run_id = s.gold_run_id
             AND adj.individual_id = it.individual_id
+            AND adj.pass = $1
     ) AS decided
 FROM adjudication_sample_items it
 JOIN adjudication_samples s ON s.id = it.sample_id
 JOIN individuals i ON i.id = it.individual_id
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN text_review_details td ON td.artifact_id = a.id
-WHERE it.sample_id = $1
+WHERE it.sample_id = $2
 ORDER BY it.external_game_id, it.individual_id
 `
+
+type ListSampleReviewsParams struct {
+	Pass     string `json:"pass"`
+	SampleID int64  `json:"sample_id"`
+}
 
 type ListSampleReviewsRow struct {
 	IndividualID   int64  `json:"individual_id"`
@@ -780,10 +786,11 @@ type ListSampleReviewsRow struct {
 }
 
 // The queue for a sample: each selected review with the text/vote/language to render and a `decided`
-// count of how many of its patterns already have a gold label in the sample's gold run. Joining the
-// per-review adjudication count in SQL keeps the worklist's progress one query, not N.
-func (q *Queries) ListSampleReviews(ctx context.Context, sampleID int64) ([]ListSampleReviewsRow, error) {
-	rows, err := q.db.Query(ctx, listSampleReviews, sampleID)
+// count of how many of its patterns already have a gold label in the sample's gold run, for the pass
+// the screen is on. the open and blind worklists pass their own pass so each shows its own progress.
+// Joining the per-review adjudication count in SQL keeps the worklist's progress one query, not N.
+func (q *Queries) ListSampleReviews(ctx context.Context, arg ListSampleReviewsParams) ([]ListSampleReviewsRow, error) {
+	rows, err := q.db.Query(ctx, listSampleReviews, arg.Pass, arg.SampleID)
 	if err != nil {
 		return nil, err
 	}

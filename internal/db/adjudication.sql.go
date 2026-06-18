@@ -231,12 +231,13 @@ func (q *Queries) ListPanelVotesForCell(ctx context.Context, arg ListPanelVotesF
 const listReviewAdjudications = `-- name: ListReviewAdjudications :many
 SELECT pattern_id, final_label
 FROM adjudications
-WHERE run_id = $1 AND individual_id = $2
+WHERE run_id = $1 AND individual_id = $2 AND pass = $3
 `
 
 type ListReviewAdjudicationsParams struct {
-	RunID        int32 `json:"run_id"`
-	IndividualID int64 `json:"individual_id"`
+	RunID        int32  `json:"run_id"`
+	IndividualID int64  `json:"individual_id"`
+	Pass         string `json:"pass"`
 }
 
 type ListReviewAdjudicationsRow struct {
@@ -244,9 +245,10 @@ type ListReviewAdjudicationsRow struct {
 	FinalLabel bool  `json:"final_label"`
 }
 
-// Existing gold labels for one review, to pre-fill the checkboxes on revisit.
+// Existing gold labels for one review in one pass, to pre-fill the checkboxes on revisit. the blind
+// read asks for pass='blind' so it never sees the open-pass labels, and the other way round.
 func (q *Queries) ListReviewAdjudications(ctx context.Context, arg ListReviewAdjudicationsParams) ([]ListReviewAdjudicationsRow, error) {
-	rows, err := q.db.Query(ctx, listReviewAdjudications, arg.RunID, arg.IndividualID)
+	rows, err := q.db.Query(ctx, listReviewAdjudications, arg.RunID, arg.IndividualID, arg.Pass)
 	if err != nil {
 		return nil, err
 	}
@@ -426,9 +428,9 @@ func (q *Queries) SampleStratifiedIndividuals(ctx context.Context, arg SampleStr
 
 const upsertAdjudication = `-- name: UpsertAdjudication :exec
 INSERT INTO adjudications (
-    run_id, individual_id, pattern_id, final_label, direction, adjudicator_id, panel_seed_at_adjudication
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (run_id, individual_id, pattern_id) DO UPDATE
+    run_id, individual_id, pattern_id, final_label, direction, adjudicator_id, panel_seed_at_adjudication, pass
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (run_id, individual_id, pattern_id, pass) DO UPDATE
 SET final_label = excluded.final_label,
     direction = excluded.direction,
     adjudicator_id = excluded.adjudicator_id,
@@ -444,10 +446,12 @@ type UpsertAdjudicationParams struct {
 	Direction               string          `json:"direction"`
 	AdjudicatorID           int32           `json:"adjudicator_id"`
 	PanelSeedAtAdjudication json.RawMessage `json:"panel_seed_at_adjudication"`
+	Pass                    string          `json:"pass"`
 }
 
 // Re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
-// the panel seed at the new decision time.
+// the panel seed at the new decision time. pass keeps the open and blind labels for a cell apart, so
+// saving one never touches the other.
 func (q *Queries) UpsertAdjudication(ctx context.Context, arg UpsertAdjudicationParams) error {
 	_, err := q.db.Exec(ctx, upsertAdjudication,
 		arg.RunID,
@@ -457,6 +461,7 @@ func (q *Queries) UpsertAdjudication(ctx context.Context, arg UpsertAdjudication
 		arg.Direction,
 		arg.AdjudicatorID,
 		arg.PanelSeedAtAdjudication,
+		arg.Pass,
 	)
 	return err
 }

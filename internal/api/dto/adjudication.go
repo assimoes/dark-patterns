@@ -67,11 +67,13 @@ type AdjudicationReview struct {
 	GoldLabels  map[string]bool `json:"goldLabels"`
 }
 
-// BlindReview is the panel-free projection for a blind pass.
+// BlindReview is the panel-free projection for a blind pass. it hides every panel vote, but it still
+// carries the auditors own saved labels so a reopened review comes back with its decisions in place.
 type BlindReview struct {
-	ID       string `json:"id"`
-	GameID   string `json:"gameId"`
-	VotedUp  bool   `json:"votedUp"`
-	Language string `json:"language"`
-	Body     string `json:"body"`
+	ID         string          `json:"id"`
+	GameID     string          `json:"gameId"`
+	VotedUp    bool            `json:"votedUp"`
+	Language   string          `json:"language"`
+	Body       string          `json:"body"`
+	GoldLabels map[string]bool `json:"goldLabels"`
 }

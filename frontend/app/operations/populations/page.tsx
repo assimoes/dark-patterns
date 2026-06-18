@@ -11,6 +11,7 @@ import {
     inputClass,
 } from "@/components/operations/form";
 import { useCreatePopulation } from "@/hooks/useCreatePopulation";
+import { useDashboard } from "@/hooks/useDashboard";
 import { ApiError } from "@/lib/api/utils";
 import type { CreatePopulationInput } from "@/lib/types";
 
@@ -19,8 +20,25 @@ export default function PopulationsPage() {
     const [minHours, setMinHours] = useState("");
     const [perGameCap, setPerGameCap] = useState("");
     const [cutoff, setCutoff] = useState("");
+    // the external ids of the games to include. empty means every game, the backend default.
+    const [games, setGames] = useState<Set<string>>(new Set());
 
     const createPopulation = useCreatePopulation();
+
+    // the game list to pick from comes from the dashboard, already cached for the rest of the app.
+    const dashboard = useDashboard();
+    const allGames = dashboard.data?.games ?? [];
+
+    const toggleGame = (id: string) =>
+        setGames((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
 
     const onSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -30,6 +48,8 @@ export default function PopulationsPage() {
         if (perGameCap !== "") body.per_game_cap = Number(perGameCap);
         // datetime-local has no tz; toISOString() gives the RFC3339 UTC the backend wants.
         if (cutoff) body.artifacts_cutoff = new Date(cutoff).toISOString();
+        // only send game_ids when some are picked, an empty list would mean "use every game" anyway.
+        if (games.size > 0) body.game_ids = [...games].map(Number);
         createPopulation.mutate(body);
     };
 
@@ -75,6 +95,40 @@ export default function PopulationsPage() {
                         onChange={(e) => setPerGameCap(e.target.value)}
                         className={inputClass}
                     />
+                </Field>
+
+                <Field
+                    label="Games"
+                    hint={
+                        games.size === 0
+                            ? "None picked means every game is included."
+                            : `${games.size} picked. Only these games will be in the population.`
+                    }
+                >
+                    {allGames.length === 0 ? (
+                        <p className="text-sm text-slate-400">No games loaded yet.</p>
+                    ) : (
+                        <div className="flex flex-wrap gap-2">
+                            {allGames.map((g) => {
+                                const on = games.has(g.id);
+                                return (
+                                    <button
+                                        key={g.id}
+                                        type="button"
+                                        onClick={() => toggleGame(g.id)}
+                                        aria-pressed={on}
+                                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors ${on
+                                            ? "border-violet-300 bg-violet-50 text-violet-700"
+                                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                            }`}
+                                    >
+                                        <span className="size-2 rounded-full" style={{ backgroundColor: g.color }} />
+                                        {g.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </Field>
 
                 <Field

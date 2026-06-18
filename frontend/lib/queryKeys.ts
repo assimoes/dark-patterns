@@ -14,8 +14,10 @@ export const qk = {
     runs: ["runs"] as const,
     run: (id: number) => ["run", id] as const,
     games: ["games"] as const,
-    adjudicationSample: (runId: string) => ["adjudicationSample", runId] as const,
+    adjudicationSample: (runId: string, pass: string) =>
+        ["adjudicationSample", runId, pass] as const,
     reviewAdjudication: (reviewId: string, panelRunId: string) =>
         ["reviewAdjudication", reviewId, panelRunId] as const,
-    reviewBlind: (reviewId: string) => ["reviewBlind", reviewId] as const,
+    reviewBlind: (reviewId: string, panelRunId: string) =>
+        ["reviewBlind", reviewId, panelRunId] as const,
 };

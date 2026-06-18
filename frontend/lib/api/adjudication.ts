@@ -1,4 +1,5 @@
 import {
+    AdjudicationPass,
     AdjudicationReview,
     AdjudicationSample,
     BlindReviewData,
@@ -9,8 +10,9 @@ import {
 import { fetchJSON } from "@/lib/api/utils";
 
 export default {
-    submitDecisions: (reviewId: string, runId: string, decisions: Record<string, Decision>) =>
-        fetchJSON<void>(`/api/reviews/${reviewId}/decisions?run=${runId}`, {
+    // pass routes the save to the open or blind bucket on the same gold run, so one never overwrites the other.
+    submitDecisions: (reviewId: string, runId: string, pass: AdjudicationPass, decisions: Record<string, Decision>) =>
+        fetchJSON<void>(`/api/reviews/${reviewId}/decisions?run=${runId}&pass=${pass}`, {
             method: 'POST',
             body: JSON.stringify({ decisions })
         }),
@@ -21,9 +23,9 @@ export default {
             body: JSON.stringify(body),
         }),
 
-    // GET /api/runs/{runId}/adjudication-sample
-    runAdjudicationSample: (runId: string) =>
-        fetchJSON<AdjudicationSample>(`/api/runs/${runId}/adjudication-sample`),
+    // GET /api/runs/{runId}/adjudication-sample?pass={pass} — pass scopes the per-review decided count.
+    runAdjudicationSample: (runId: string, pass: AdjudicationPass) =>
+        fetchJSON<AdjudicationSample>(`/api/runs/${runId}/adjudication-sample?pass=${pass}`),
 
     // GET /api/reviews/{reviewId}/adjudication?run={panelRunId}
     reviewAdjudication: (reviewId: string, panelRunId: string) =>
@@ -31,7 +33,7 @@ export default {
             `/api/reviews/${reviewId}/adjudication?run=${panelRunId}`,
         ),
 
-    // GET /api/reviews/{reviewId}/blind
-    reviewBlind: (reviewId: string) =>
-        fetchJSON<BlindReviewData>(`/api/reviews/${reviewId}/blind`),
+    // GET /api/reviews/{reviewId}/blind?run={panelRunId}
+    reviewBlind: (reviewId: string, panelRunId: string) =>
+        fetchJSON<BlindReviewData>(`/api/reviews/${reviewId}/blind?run=${panelRunId}`),
 }

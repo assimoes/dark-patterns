@@ -230,7 +230,10 @@ func (s *Server) runAdjudicationSample(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := s.q.ListSampleReviews(ctx, sample.ID)
+	rows, err := s.q.ListSampleReviews(ctx, db.ListSampleReviewsParams{
+		SampleID: sample.ID,
+		Pass:     passFromQuery(r),
+	})
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "load sample reviews", err)
 		return
@@ -328,13 +331,15 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 		panelModels = append(panelModels, a.ModelSlug)
 	}
 
-	// existing gold labels to revisit, keyed by pattern code for the frontend
+	// existing gold labels to revisit, keyed by pattern code for the frontend. the open pass, so this
+	// screen never shows or touches what the blind pass recorded.
 	goldRun, err := s.q.GetGoldRunForPopulation(ctx, run.PopulationID)
 	goldLabels := map[string]bool{}
 	if err == nil {
 		adjs, err := s.q.ListReviewAdjudications(ctx, db.ListReviewAdjudicationsParams{
 			RunID:        goldRun,
 			IndividualID: individualID,
+			Pass:         "open",
 		})
 		if err != nil {
 			s.writeError(w, http.StatusInternalServerError, "load gold labels", err)
@@ -362,7 +367,8 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// reviewBlind returns the panel-free projection for the blind pass.
+// reviewBlind returns the panel-free projection for the blind pass: the review text and metadata with
+// every panel vote hidden, plus the auditors own saved labels so a reopened review keeps its state.
 func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -378,12 +384,66 @@ func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// the panel run only resolves the population and taxonomy version so we can map pattern codes and
+	// find the gold run. none of it reaches the response, so the blind boundary holds.
+	panelRun, err := s.resolvePanelRun(ctx, r, individualID)
+	if err != nil {
+		s.writeError(w, http.StatusNotFound, "no panel run for this review", err)
+		return
+	}
+
+	run, err := s.q.GetRun(ctx, panelRun)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "load panel run", err)
+		return
+	}
+
+	taxVersion := int32(1)
+	if run.TaxonomyVersion != nil {
+		taxVersion = *run.TaxonomyVersion
+	}
+
+	codes, err := s.q.GetMesoPatternCodes(ctx, taxVersion)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "load taxonomy codes", err)
+		return
+	}
+	codeByID := make(map[int32]string, len(codes))
+	for _, c := range codes {
+		codeByID[c.ID] = c.Code
+	}
+
+	// the auditors own blind labels, keyed by pattern code, so the cards refill on revisit. pass='blind'
+	// keeps the open-pass decisions out of sight, which is the whole point of the blind run.
+	goldRun, err := s.q.GetGoldRunForPopulation(ctx, run.PopulationID)
+	goldLabels := map[string]bool{}
+	if err == nil {
+		adjs, err := s.q.ListReviewAdjudications(ctx, db.ListReviewAdjudicationsParams{
+			RunID:        goldRun,
+			IndividualID: individualID,
+			Pass:         "blind",
+		})
+		if err != nil {
+			s.writeError(w, http.StatusInternalServerError, "load gold labels", err)
+			return
+		}
+		for _, a := range adjs {
+			if code, ok := codeByID[a.PatternID]; ok {
+				goldLabels[code] = a.FinalLabel
+			}
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		s.writeError(w, http.StatusInternalServerError, "resolve gold run", err)
+		return
+	}
+
 	s.writeJSON(w, http.StatusOK, dto.BlindReview{
-		ID:       strconv.FormatInt(individualID, 10),
-		GameID:   dto.GameID(meta.ExternalGameID),
-		VotedUp:  meta.VotedUp,
-		Language: meta.Lang,
-		Body:     meta.Body,
+		ID:         strconv.FormatInt(individualID, 10),
+		GameID:     dto.GameID(meta.ExternalGameID),
+		VotedUp:    meta.VotedUp,
+		Language:   meta.Lang,
+		Body:       meta.Body,
+		GoldLabels: goldLabels,
 	})
 }
 
@@ -394,6 +454,15 @@ func (s *Server) resolvePanelRun(ctx context.Context, r *http.Request, individua
 	}
 
 	return s.q.GetPanelRunForReview(ctx, individualID)
+}
+
+// passFromQuery reads the adjudication pass off ?pass=. anything that is not 'blind' is the open pass,
+// so a missing or junk value can never land a label in the blind bucket by accident.
+func passFromQuery(r *http.Request) string {
+	if r.URL.Query().Get("pass") == "blind" {
+		return "blind"
+	}
+	return "open"
 }
 
 // reviewDecisions records the auditors present/absent calls for one review ({reviewId} is the
@@ -407,6 +476,9 @@ func (s *Server) reviewDecisions(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "invalid reviewId", err)
 		return
 	}
+
+	// which pass this save belongs to. the blind screen sends pass=blind, everything else is the open pass.
+	pass := passFromQuery(r)
 
 	var req dto.DecisionsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -481,6 +553,7 @@ func (s *Server) reviewDecisions(w http.ResponseWriter, r *http.Request) {
 			Direction:               direction,
 			AdjudicatorID:           s.auditor,
 			PanelSeedAtAdjudication: seed.JSON(),
+			Pass:                    pass,
 		}); err != nil {
 			s.writeError(w, http.StatusInternalServerError, "save adjudication", err)
 			return
