@@ -29,6 +29,7 @@ type Querier interface {
 	CreateRun(ctx context.Context, arg CreateRunParams) (int32, error)
 	// Clear prior pattern rows before re-writing, so a retry doesn't leave stale ones.
 	DeleteAnnotationPatterns(ctx context.Context, annotationID int64) error
+	FreezeImagePopulation(ctx context.Context, arg FreezeImagePopulationParams) (int64, error)
 	FreezeStratifiedPopulation(ctx context.Context, arg FreezeStratifiedPopulationParams) (int64, error)
 	GameReviewTotals(ctx context.Context) ([]GameReviewTotalsRow, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
@@ -36,6 +37,7 @@ type Querier interface {
 	// The most recent gold run for a population. Adjudication samples and decisions write into one gold
 	// run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
 	GetGoldRunForPopulation(ctx context.Context, populationID int32) (int32, error)
+	GetImageForIndividual(ctx context.Context, id int64) (GetImageForIndividualRow, error)
 	GetLLMAnnotatorByModel(ctx context.Context, modelID *int32) (Annotator, error)
 	GetLatestPrompt(ctx context.Context, name string) (Prompt, error)
 	// The most recent sample drawn for a panel run, to reopen its queue.
@@ -169,6 +171,7 @@ type Querier interface {
 	// Idempotent on source_id; DO UPDATE instead of DO NOTHING because we want it to always return the id even on re-scrape.
 	// ON CONFLICT we update the scraped_at date.
 	UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) (int64, error)
+	UpsertImageDetail(ctx context.Context, arg UpsertImageDetailParams) error
 	UpsertModel(ctx context.Context, arg UpsertModelParams) (int32, error)
 	UpsertScrapeCursor(ctx context.Context, arg UpsertScrapeCursorParams) error
 	// On re-scrape we only refresh the volatile signal (votes, hours).

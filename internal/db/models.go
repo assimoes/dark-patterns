@@ -90,12 +90,13 @@ type GameDisplay struct {
 }
 
 type ImageDetail struct {
-	ArtifactID int64   `json:"artifact_id"`
-	ImageUri   string  `json:"image_uri"`
-	Width      *int32  `json:"width"`
-	Height     *int32  `json:"height"`
-	MimeType   *string `json:"mime_type"`
-	OcrText    *string `json:"ocr_text"`
+	ArtifactID  int64   `json:"artifact_id"`
+	ImageUri    string  `json:"image_uri"`
+	Width       *int32  `json:"width"`
+	Height      *int32  `json:"height"`
+	MimeType    *string `json:"mime_type"`
+	OcrText     *string `json:"ocr_text"`
+	Description *string `json:"description"`
 }
 
 type Individual struct {
