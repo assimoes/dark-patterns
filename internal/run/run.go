@@ -46,7 +46,7 @@ func Validate(ctx context.Context, q db.Querier, annotatorIDs []int32, populatio
 	if err != nil {
 		return fmt.Errorf("loading prompt %d: %w", promptID, err)
 	}
-	if prompt.Modality != "text" && prompt.Modality != "image" {
+	if prompt.Modality != "text" && prompt.Modality != "image" && prompt.Modality != "multimodal" {
 		return fmt.Errorf("prompt %d has unsupported modality %q", promptID, prompt.Modality)
 	}
 

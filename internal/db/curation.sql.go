@@ -95,6 +95,41 @@ func (q *Queries) FreezeImagePopulation(ctx context.Context, arg FreezeImagePopu
 	return result.RowsAffected(), nil
 }
 
+const freezeMultimodalPopulation = `-- name: FreezeMultimodalPopulation :execrows
+INSERT INTO individuals (population_id, artifact_id)
+SELECT $1::int, ranked.artifact_id
+FROM (
+    SELECT a.id as artifact_id,
+           row_number() OVER (
+            PARTITION BY a.external_game_id
+            ORDER BY a.id
+           ) as rn
+    FROM artifacts a
+    JOIN text_review_details td ON td.artifact_id = a.id
+    JOIN image_details img ON img.artifact_id = a.id
+    WHERE a.modality = 'multimodal'
+        AND a.scraped_at <= $2
+) ranked
+WHERE ranked.rn <= $3::int
+ON CONFLICT (population_id, artifact_id) DO NOTHING
+`
+
+type FreezeMultimodalPopulationParams struct {
+	PopulationID    int32              `json:"population_id"`
+	ArtifactsCutoff pgtype.Timestamptz `json:"artifacts_cutoff"`
+	PerGameCap      int32              `json:"per_game_cap"`
+}
+
+// a multimodal artifact has both channels, so this joins both detail tables: only artifacts with a body
+// AND an image are frozen in. same cap and cutoff as the image freeze, no hours filter.
+func (q *Queries) FreezeMultimodalPopulation(ctx context.Context, arg FreezeMultimodalPopulationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, freezeMultimodalPopulation, arg.PopulationID, arg.ArtifactsCutoff, arg.PerGameCap)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const freezeStratifiedPopulation = `-- name: FreezeStratifiedPopulation :execrows
 INSERT INTO individuals (population_id, artifact_id)
 SELECT $1::int, ranked.artifact_id

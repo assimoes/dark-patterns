@@ -95,17 +95,8 @@ func (ImageLoader) Load(ctx context.Context, q *db.Queries,
 		return Input{}, err
 	}
 
-	nonce, err := newNonce()
+	user, err := renderUser(rc, row.OcrText)
 	if err != nil {
-		return Input{}, err
-	}
-
-	var b strings.Builder
-	if err := rc.Template.Execute(&b, promptData{
-		Taxonomy: rc.Taxonomy,
-		Content:  row.OcrText,
-		Nonce:    nonce,
-	}); err != nil {
 		return Input{}, err
 	}
 
@@ -116,7 +107,42 @@ func (ImageLoader) Load(ctx context.Context, q *db.Queries,
 
 	return Input{
 		System: rc.System,
-		User:   b.String(),
+		User:   user,
+		Images: []Image{{URL: row.ImageUri, MIMEType: mime}},
+	}, nil
+}
+
+// MultimodalLoader pulls an artifact that has both a text body and an image, and fills one Input with
+// both: the body as the user text and the image attached. this is the seam, the panel call is unchanged.
+type MultimodalLoader struct{}
+
+// Modality is "multimodal".
+func (MultimodalLoader) Modality() string {
+	return "multimodal"
+}
+
+// Load reads both channels for the individual and returns an Input carrying the body and the image.
+func (MultimodalLoader) Load(ctx context.Context, q *db.Queries,
+	rc RenderCtx, individualID int64) (Input, error) {
+
+	row, err := q.GetMultimodalForIndividual(ctx, individualID)
+	if err != nil {
+		return Input{}, err
+	}
+
+	user, err := renderUser(rc, row.Body)
+	if err != nil {
+		return Input{}, err
+	}
+
+	mime := ""
+	if row.MimeType != nil {
+		mime = *row.MimeType
+	}
+
+	return Input{
+		System: rc.System,
+		User:   user,
 		Images: []Image{{URL: row.ImageUri, MIMEType: mime}},
 	}, nil
 }
@@ -127,4 +153,24 @@ func newNonce() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf[:]), nil
+}
+
+// renderUser runs the per-item user template with a fresh nonce. shared by the image and multimodal
+// loaders so each Load stays short. (TextLoader renders its own, since it also passes language/voted_up.)
+func renderUser(rc RenderCtx, content string) (string, error) {
+	nonce, err := newNonce()
+	if err != nil {
+		return "", err
+	}
+
+	var b strings.Builder
+	if err := rc.Template.Execute(&b, promptData{
+		Taxonomy: rc.Taxonomy,
+		Content:  content,
+		Nonce:    nonce,
+	}); err != nil {
+		return "", err
+	}
+
+	return b.String(), nil
 }

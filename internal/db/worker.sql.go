@@ -36,6 +36,36 @@ func (q *Queries) GetImageForIndividual(ctx context.Context, id int64) (GetImage
 	return i, err
 }
 
+const getMultimodalForIndividual = `-- name: GetMultimodalForIndividual :one
+SELECT a.id AS artifact_id, td.body, img.image_uri, img.mime_type
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN text_review_details td ON td.artifact_id = a.id
+JOIN image_details img ON img.artifact_id = a.id
+WHERE i.id = $1
+`
+
+type GetMultimodalForIndividualRow struct {
+	ArtifactID int64   `json:"artifact_id"`
+	Body       string  `json:"body"`
+	ImageUri   string  `json:"image_uri"`
+	MimeType   *string `json:"mime_type"`
+}
+
+// a multimodal item carries both channels: a text body and an image. inner-joining both detail tables
+// means it only returns artifacts that actually have both, which is exactly the multimodal case.
+func (q *Queries) GetMultimodalForIndividual(ctx context.Context, id int64) (GetMultimodalForIndividualRow, error) {
+	row := q.db.QueryRow(ctx, getMultimodalForIndividual, id)
+	var i GetMultimodalForIndividualRow
+	err := row.Scan(
+		&i.ArtifactID,
+		&i.Body,
+		&i.ImageUri,
+		&i.MimeType,
+	)
+	return i, err
+}
+
 const getTextReviewForIndividual = `-- name: GetTextReviewForIndividual :one
 SELECT a.id AS artifact_id, td.body, td.voted_up, td.lang
 FROM individuals i

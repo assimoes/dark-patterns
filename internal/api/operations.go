@@ -169,8 +169,8 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 	if modality == "" {
 		modality = "text"
 	}
-	if modality != "text" && modality != "image" {
-		s.writeError(w, http.StatusBadRequest, "modality must be 'text' or 'image'", nil)
+	if modality != "text" && modality != "image" && modality != "multimodal" {
+		s.writeError(w, http.StatusBadRequest, "modality must be 'text', 'image' or 'multimodal'", nil)
 		return
 	}
 
@@ -232,13 +232,20 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 
 	var inserted int64
 
-	if modality == "image" {
+	switch modality {
+	case "image":
 		inserted, err = q.FreezeImagePopulation(ctx, db.FreezeImagePopulationParams{
 			PopulationID:    popID,
 			ArtifactsCutoff: pgtype.Timestamptz{Time: cut, Valid: true},
 			PerGameCap:      int32(perGame),
 		})
-	} else {
+	case "multimodal":
+		inserted, err = q.FreezeMultimodalPopulation(ctx, db.FreezeMultimodalPopulationParams{
+			PopulationID:    popID,
+			ArtifactsCutoff: pgtype.Timestamptz{Time: cut, Valid: true},
+			PerGameCap:      int32(perGame),
+		})
+	default:
 		inserted, err = q.FreezeStratifiedPopulation(ctx, db.FreezeStratifiedPopulationParams{
 			PopulationID:    popID,
 			ArtifactsCutoff: pgtype.Timestamptz{Time: cut, Valid: true},
