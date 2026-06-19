@@ -21,7 +21,7 @@ export function GameSelect({
             ? "Couldn't load games."
             : prompts.length === 0
                 ? "No games available."
-                : "Pick the game to scrape from steam.";
+                : "Pick the game.";
 
     return (
         <Field label="Game" hint={hint}>

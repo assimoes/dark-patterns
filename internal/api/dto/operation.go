@@ -22,9 +22,12 @@ type UploadImagesResponse struct {
 	ImageIDs []int64 `json:"image_ids"`
 }
 
-// ScrapeRequest is the body of POST /api/scrapes, same args as steam enqueue. App is the steam app id as a string.
+// ScrapeRequest is the body of POST /api/scrapes. game_id tags the rows, source picks the worker, and
+// target is the source-specific handle (steam app id, subreddit). filter/lang are steam-only.
 type ScrapeRequest struct {
-	App    string `json:"app"`
+	GameID int32  `json:"game_id"`
+	Source string `json:"source"`
+	Target string `json:"target"`
 	Filter string `json:"filter"`
 	Lang   string `json:"lang"`
 	Max    int    `json:"max"`

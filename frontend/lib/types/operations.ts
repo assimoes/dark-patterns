@@ -71,11 +71,15 @@ export type CreateRunResult = {
     annotator_ids: number[];
 };
 
-// POST /api/scrapes — enqueue a Steam reviews scrape for an app id.
+// POST /api/scrapes — enqueue a scrape for a game on one source. target is the source handle (steam
+// app id, subreddit); filter and lang are steam-only.
 export type ScrapeFilter = "recent" | "updated";
+export type ScrapeSource = "steam" | "reddit";
 
 export type EnqueueScrapeInput = {
-    app: string;
+    game_id: number;
+    source: ScrapeSource;
+    target: string;
     filter?: ScrapeFilter;
     lang?: string;
     max?: number;
@@ -83,8 +87,8 @@ export type EnqueueScrapeInput = {
 export type EnqueueScrapeResult = {
     enqueued: true;
     game_id: number;
-    filter: string;
-    language: string;
+    source: string;
+    target: string;
     max: number;
 };
 

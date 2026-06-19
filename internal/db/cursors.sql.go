@@ -11,32 +11,39 @@ import (
 
 const getScrapeCursor = `-- name: GetScrapeCursor :one
 SELECT cursor FROM scrape_cursors
-WHERE external_game_id = $1 AND filter = $2 AND language = $3
+WHERE external_game_id = $1 AND source = $2 AND filter = $3 AND language = $4
 `
 
 type GetScrapeCursorParams struct {
 	ExternalGameID int32  `json:"external_game_id"`
+	Source         string `json:"source"`
 	Filter         string `json:"filter"`
 	Language       string `json:"language"`
 }
 
 func (q *Queries) GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error) {
-	row := q.db.QueryRow(ctx, getScrapeCursor, arg.ExternalGameID, arg.Filter, arg.Language)
+	row := q.db.QueryRow(ctx, getScrapeCursor,
+		arg.ExternalGameID,
+		arg.Source,
+		arg.Filter,
+		arg.Language,
+	)
 	var cursor string
 	err := row.Scan(&cursor)
 	return cursor, err
 }
 
 const upsertScrapeCursor = `-- name: UpsertScrapeCursor :exec
-INSERT INTO scrape_cursors (external_game_id, filter, language, cursor, updated_at)
-VALUES ($1, $2, $3, $4, now())
-ON CONFLICT (external_game_id, filter, language) DO UPDATE
+INSERT INTO scrape_cursors (external_game_id, source, filter, language, cursor, updated_at)
+VALUES ($1, $2, $3, $4, $5, now())
+ON CONFLICT (external_game_id, source, filter, language) DO UPDATE
     SET cursor = EXCLUDED.cursor,
         updated_at = now()
 `
 
 type UpsertScrapeCursorParams struct {
 	ExternalGameID int32  `json:"external_game_id"`
+	Source         string `json:"source"`
 	Filter         string `json:"filter"`
 	Language       string `json:"language"`
 	Cursor         string `json:"cursor"`
@@ -45,6 +52,7 @@ type UpsertScrapeCursorParams struct {
 func (q *Queries) UpsertScrapeCursor(ctx context.Context, arg UpsertScrapeCursorParams) error {
 	_, err := q.db.Exec(ctx, upsertScrapeCursor,
 		arg.ExternalGameID,
+		arg.Source,
 		arg.Filter,
 		arg.Language,
 		arg.Cursor,
