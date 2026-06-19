@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, CheckCheck, Eraser, EyeOff, Inbox, Save } from "
 import { assignColors, splitBySpans } from "@/lib/highlight";
 import { codebook } from "@/lib/codebook";
 import { type Decision } from "@/lib/adjudication";
+import { mapBlindReview } from "@/lib/blind";
 import { ApiError } from "@/lib/api/utils";
 import { useRunAdjudicationSample } from "@/hooks/useRunAdjudicationSample";
 import { useReviewBlind } from "@/hooks/useReviewBlind";
@@ -272,7 +273,7 @@ function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: s
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
                     <div className="lg:col-span-2">
                         <BlindReviewPane
-                            review={review}
+                            review={mapBlindReview(review)}
                             segments={segments}
                             hovered={hovered}
                             capturing={capturing}
@@ -327,6 +328,7 @@ function BlindWorklist({ sample, runId }: { sample: AdjudicationSample; runId: s
                                 decision={effective(pattern.code)}
                                 evidence={evidence[keyOf(pattern.code)]}
                                 capturing={capturing === pattern.code}
+                                canCite={review?.modality !== "image"}
                                 evidenceColor={colors[pattern.code]}
                                 onDecide={(d) => decide(pattern.code, d)}
                                 onCite={() => {

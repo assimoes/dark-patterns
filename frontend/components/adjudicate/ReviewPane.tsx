@@ -46,35 +46,59 @@ export function ReviewPane({
             </div>
 
             <div className="px-5 py-5">
-                <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">
-                    {segments.map((s, i) =>
-                        s.code ? (
-                            <mark
-                                key={i}
-                                title={s.code}
-                                aria-label={`evidence cited for ${s.code}`}
-                                onMouseEnter={() => onHover(s.code!)}
-                                onMouseLeave={() => onHover(null)}
-                                className="cursor-help rounded-sm px-0.5 transition-colors"
-                                style={{
-                                    backgroundColor: hovered === s.code ? `${s.color}33` : `${s.color}14`,
-                                    borderBottom: `2px solid ${s.color}`,
-                                    color: "inherit",
-                                }}
-                            >
-                                {s.text}
-                            </mark>
-                        ) : (
-                            <span key={i}>{s.text}</span>
-                        ),
-                    )}
-                </p>
 
-                <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
-                    Underlines are the evidence each LLM cited, coloured by pattern. Hover a pattern card to
-                    find its evidence here.
-                </p>
+                {review.modality === "image" && review.imageUri ? (
+                    <>
+                        <img
+                            src={review.imageUri}
+                            alt={`screenshot for review ${review.id}`}
+                            className="w-full rounded-lg border border-slate-200"
+                        />
+                        {review.description ? (
+                            <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                                <span className="font-medium text-slate-600">Source note:</span>{" "}
+                                {review.description}
+                            </p>
+                        ) : null}
+                        <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                            Image review. Judge each pattern present or absent from the screenshot. The
+                            evidence each LLM cited shows as text on its pattern card.
+                        </p>
+                    </>
+                ) : (
+                    <>
+                        <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">
+                            {segments.map((s, i) =>
+                                s.code ? (
+                                    <mark
+                                        key={i}
+                                        title={s.code}
+                                        aria-label={`evidence cited for ${s.code}`}
+                                        onMouseEnter={() => onHover(s.code!)}
+                                        onMouseLeave={() => onHover(null)}
+                                        className="cursor-help rounded-sm px-0.5 transition-colors"
+                                        style={{
+                                            backgroundColor: hovered === s.code ? `${s.color}33` : `${s.color}14`,
+                                            borderBottom: `2px solid ${s.color}`,
+                                            color: "inherit",
+                                        }}
+                                    >
+                                        {s.text}
+                                    </mark>
+                                ) : (
+                                    <span key={i}>{s.text}</span>
+                                ),
+                            )}
+                        </p>
+
+                        <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                            Underlines are the evidence each LLM cited, coloured by pattern. Hover a pattern card to
+                            find its evidence here.
+                        </p>
+                    </>
+                )}
+
             </div>
-        </div>
+        </div >
     );
 }

@@ -54,9 +54,12 @@ export type Detection = {
 export type AdjudicationReview = {
     id: string;
     gameId: string;
+    modality: string;
     votedUp: boolean;
     language: string;
     body: string;
+    imageUri: string;
+    description: string;
     panelModels: string[];
     detections: Detection[];
     goldLabels: Record<string, boolean>;
@@ -67,8 +70,10 @@ export type AdjudicationReview = {
 export type BlindReviewData = {
     id: string;
     gameId: string;
+    modality: string;
     votedUp: boolean;
     language: string;
     body: string;
+    imageUri: string;
     goldLabels: Record<string, boolean>;
 };

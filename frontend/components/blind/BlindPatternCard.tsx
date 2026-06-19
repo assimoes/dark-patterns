@@ -14,6 +14,7 @@ export function BlindPatternCard({
     decision,
     evidence,
     capturing,
+    canCite = true,
     evidenceColor,
     onDecide,
     onCite,
@@ -25,6 +26,7 @@ export function BlindPatternCard({
     decision?: Decision;
     evidence?: string;
     capturing: boolean;
+    canCite?: boolean;
     evidenceColor?: string;
     onDecide: (d: Decision) => void;
     onCite: () => void;
@@ -91,7 +93,7 @@ export function BlindPatternCard({
                         </DecisionButton>
                     </div>
 
-                    {decision === "present" ? (
+                    {decision === "present" && canCite ? (
                         evidence ? null : capturing ? (
                             <button
                                 type="button"

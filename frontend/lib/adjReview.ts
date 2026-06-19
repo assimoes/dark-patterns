@@ -9,6 +9,7 @@ export type MappedAdjReview = {
     goldDecisions: Record<string, Decision>;
 };
 
+
 // short display label from a model name
 function shortLabel(name: string): string {
     const head = name.split(/[\s/]/)[0] ?? name;
@@ -34,6 +35,9 @@ export function mapAdjudicationReview(data: AdjudicationReview): MappedAdjReview
         language: data.language,
         body: data.body,
         present,
+        modality: data.modality,
+        imageUri: data.imageUri,
+        description: data.description,
     };
 
     const goldDecisions: Record<string, Decision> = {};
