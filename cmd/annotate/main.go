@@ -137,7 +137,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		loaders := []annotate.Loader{annotate.TextLoader{}}
+		loaders := []annotate.Loader{annotate.TextLoader{}, annotate.ImageLoader{}}
 		workers := river.NewWorkers()
 		river.AddWorker(workers, annotate.NewAnnotateWorker(pool, loaders, registry, logger))
 

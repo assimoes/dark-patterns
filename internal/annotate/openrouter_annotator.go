@@ -101,12 +101,21 @@ func (a *OpenRouterAnnotator) Identity() RunIdentity {
 // reply, and returns the raw body. Retries live in call.
 func (a *OpenRouterAnnotator) Annotate(ctx context.Context, in Input) (Output, error) {
 
+	var userContent any = in.User
+	if len(in.Images) > 0 {
+		parts := []oraContentPart{{Type: "text", Text: in.User}}
+		for _, img := range in.Images {
+			parts = append(parts, oraContentPart{Type: "image_url", ImageURL: &oraImageURL{URL: img.URL}})
+		}
+		userContent = parts
+	}
+
 	body := oraRequest{
 		Model:       a.model,
 		Temperature: 0,
-		Messages: []oraMessage{
+		Messages: []oraReqMessage{
 			{Role: "system", Content: in.System},
-			{Role: "user", Content: in.User},
+			{Role: "user", Content: userContent},
 		},
 	}
 

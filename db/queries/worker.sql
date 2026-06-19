@@ -23,3 +23,10 @@ WHERE r.id = sqlc.arg(run_id)
             AND an.status = 'completed' 
     )
 ORDER BY i.id;
+
+-- name: GetImageForIndividual :one
+SELECT a.id AS artifact_id, img.image_uri, img.mime_type, COALESCE(img.ocr_text, '')::text AS ocr_text
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN image_details img ON img.artifact_id = a.id
+WHERE i.id = $1;

@@ -41,3 +41,20 @@ FROM (
 ) ranked
 WHERE ranked.rn <= @per_game_cap::int
 ON CONFLICT (population_id, artifact_id) DO NOTHING;
+
+-- name: FreezeImagePopulation :execrows
+INSERT INTO individuals (population_id, artifact_id)
+SELECT @population_id::int, ranked.artifact_id
+FROM (
+    SELECT a.id as artifact_id,
+           row_number() OVER (
+            PARTITION BY a.external_game_id
+            ORDER BY a.id
+           ) as rn
+    FROM artifacts a
+    JOIN image_details img ON img.artifact_id = a.id
+    WHERE a.modality = 'image'
+        AND a.scraped_at <= @artifacts_cutoff
+) ranked
+WHERE ranked.rn <= @per_game_cap::int
+ON CONFLICT (population_id, artifact_id) DO NOTHING;

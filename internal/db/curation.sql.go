@@ -63,6 +63,38 @@ func (q *Queries) CreatePopulation(ctx context.Context, arg CreatePopulationPara
 	return id, err
 }
 
+const freezeImagePopulation = `-- name: FreezeImagePopulation :execrows
+INSERT INTO individuals (population_id, artifact_id)
+SELECT $1::int, ranked.artifact_id
+FROM (
+    SELECT a.id as artifact_id,
+           row_number() OVER (
+            PARTITION BY a.external_game_id
+            ORDER BY a.id
+           ) as rn
+    FROM artifacts a
+    JOIN image_details img ON img.artifact_id = a.id
+    WHERE a.modality = 'image'
+        AND a.scraped_at <= $2
+) ranked
+WHERE ranked.rn <= $3::int
+ON CONFLICT (population_id, artifact_id) DO NOTHING
+`
+
+type FreezeImagePopulationParams struct {
+	PopulationID    int32              `json:"population_id"`
+	ArtifactsCutoff pgtype.Timestamptz `json:"artifacts_cutoff"`
+	PerGameCap      int32              `json:"per_game_cap"`
+}
+
+func (q *Queries) FreezeImagePopulation(ctx context.Context, arg FreezeImagePopulationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, freezeImagePopulation, arg.PopulationID, arg.ArtifactsCutoff, arg.PerGameCap)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const freezeStratifiedPopulation = `-- name: FreezeStratifiedPopulation :execrows
 INSERT INTO individuals (population_id, artifact_id)
 SELECT $1::int, ranked.artifact_id

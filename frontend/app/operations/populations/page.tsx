@@ -22,6 +22,7 @@ export default function PopulationsPage() {
     const [cutoff, setCutoff] = useState("");
     // the external ids of the games to include. empty means every game, the backend default.
     const [games, setGames] = useState<Set<string>>(new Set());
+    const [modality, setModality] = useState<"text" | "image">("text");
 
     const createPopulation = useCreatePopulation();
 
@@ -50,6 +51,7 @@ export default function PopulationsPage() {
         if (cutoff) body.artifacts_cutoff = new Date(cutoff).toISOString();
         // only send game_ids when some are picked, an empty list would mean "use every game" anyway.
         if (games.size > 0) body.game_ids = [...games].map(Number);
+        if (modality === 'image') body.modality = 'image'
         createPopulation.mutate(body);
     };
 
@@ -130,7 +132,24 @@ export default function PopulationsPage() {
                         </div>
                     )}
                 </Field>
-
+                <Field label="Modality" hint="Which artifact kind to freeze.">
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                        {(["text", "image"] as const).map((m) => (
+                            <button
+                                key={m}
+                                type="button"
+                                onClick={() => setModality(m)}
+                                aria-pressed={modality === m}
+                                className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${modality === m
+                                    ? "bg-violet-50 text-violet-700"
+                                    : "text-slate-500 hover:text-slate-700"
+                                    }`}
+                            >
+                                {m}
+                            </button>
+                        ))}
+                    </div>
+                </Field>
                 <Field
                     label="Artifacts cutoff"
                     hint="Only include reviews before this moment."

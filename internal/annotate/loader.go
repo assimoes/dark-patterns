@@ -76,6 +76,51 @@ func (TextLoader) Load(ctx context.Context, q *db.Queries,
 	}, nil
 }
 
+// ImageLoader pulls the screenshot for an individual and renders the multimodal Input: the prompt text
+// plus the image attached for the model to look at.
+type ImageLoader struct{}
+
+// Modality is "image".
+func (ImageLoader) Modality() string {
+	return "image"
+}
+
+// Load fetches the image uri, renders the user template (any ocr text rides along in Content), and
+// returns an Input carrying the image so the annotator sends it as an image_url part.
+func (ImageLoader) Load(ctx context.Context, q *db.Queries,
+	rc RenderCtx, individualID int64) (Input, error) {
+
+	row, err := q.GetImageForIndividual(ctx, individualID)
+	if err != nil {
+		return Input{}, err
+	}
+
+	nonce, err := newNonce()
+	if err != nil {
+		return Input{}, err
+	}
+
+	var b strings.Builder
+	if err := rc.Template.Execute(&b, promptData{
+		Taxonomy: rc.Taxonomy,
+		Content:  row.OcrText,
+		Nonce:    nonce,
+	}); err != nil {
+		return Input{}, err
+	}
+
+	mime := ""
+	if row.MimeType != nil {
+		mime = *row.MimeType
+	}
+
+	return Input{
+		System: rc.System,
+		User:   b.String(),
+		Images: []Image{{URL: row.ImageUri, MIMEType: mime}},
+	}, nil
+}
+
 func newNonce() (string, error) {
 	var buf [8]byte
 	if _, err := rand.Read(buf[:]); err != nil {

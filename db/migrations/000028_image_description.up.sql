@@ -1,0 +1,1 @@
+ALTER TABLE image_details ADD COLUMN description text;

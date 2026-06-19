@@ -12,7 +12,6 @@ import (
 )
 
 const countArtifactsBySource = `-- name: CountArtifactsBySource :one
-
 SELECT COUNT(*) FROM artifacts WHERE source = $1 AND modality = $2
 `
 
@@ -79,6 +78,35 @@ func (q *Queries) UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) 
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const upsertImageDetail = `-- name: UpsertImageDetail :exec
+INSERT INTO image_details (artifact_id, image_uri, width, height, mime_type, ocr_text, description)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT DO NOTHING
+`
+
+type UpsertImageDetailParams struct {
+	ArtifactID  int64   `json:"artifact_id"`
+	ImageUri    string  `json:"image_uri"`
+	Width       *int32  `json:"width"`
+	Height      *int32  `json:"height"`
+	MimeType    *string `json:"mime_type"`
+	OcrText     *string `json:"ocr_text"`
+	Description *string `json:"description"`
+}
+
+func (q *Queries) UpsertImageDetail(ctx context.Context, arg UpsertImageDetailParams) error {
+	_, err := q.db.Exec(ctx, upsertImageDetail,
+		arg.ArtifactID,
+		arg.ImageUri,
+		arg.Width,
+		arg.Height,
+		arg.MimeType,
+		arg.OcrText,
+		arg.Description,
+	)
+	return err
 }
 
 const upsertTextReviewDetail = `-- name: UpsertTextReviewDetail :exec

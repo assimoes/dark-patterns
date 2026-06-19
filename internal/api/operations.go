@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,19 +20,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// addGameRequest is the body of POST /api/games, the fields that become a game_display row.
-type addGameRequest struct {
-	ExternalGameID int32  `json:"external_game_id"`
-	Name           string `json:"name"`
-	Short          string `json:"short"`
-	Monetization   string `json:"monetization"`
-	Color          string `json:"color"`
-}
-
 // createGame registers a game so it shows on the dashboard and can be scraped.
 func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 
-	req, ok := decodeJSON[addGameRequest](s, w, r)
+	req, ok := decodeJSON[dto.AddGameRequest](s, w, r)
 	if !ok {
 		return
 	}
@@ -84,30 +77,11 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// addAnnotatorRequest is the body of POST /api/annotators. the family/slug/name/modalities fields only
-// matter for kind=llm, theyre the model row we upsert before linking the annotator to it.
-type addAnnotatorRequest struct {
-	Kind       string   `json:"kind"`
-	Label      string   `json:"label"`
-	Family     string   `json:"family"`
-	Slug       string   `json:"slug"`
-	Name       string   `json:"name"`
-	Modalities []string `json:"modalities"`
-}
-
-// annotatorResponse is the 201 body of POST /api/annotators. ModelID is null for humans.
-type annotatorResponse struct {
-	ID      int32  `json:"id"`
-	Kind    string `json:"kind"`
-	Label   string `json:"label"`
-	ModelID *int32 `json:"model_id"`
-}
-
 // createAnnotator inserts an annotator.
 func (s *Server) createAnnotator(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, ok := decodeJSON[addAnnotatorRequest](s, w, r)
+	req, ok := decodeJSON[dto.AddAnnotatorRequest](s, w, r)
 	if !ok {
 		return
 	}
@@ -128,7 +102,7 @@ func (s *Server) createAnnotator(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, http.StatusInternalServerError, "create human annotator", err)
 			return
 		}
-		s.writeJSON(w, http.StatusCreated, annotatorResponse{ID: id, Kind: "human", Label: req.Label})
+		s.writeJSON(w, http.StatusCreated, dto.AnnotatorResponse{ID: id, Kind: "human", Label: req.Label})
 
 	case "llm":
 		if req.Family == "" || req.Slug == "" || req.Name == "" {
@@ -175,45 +149,28 @@ func (s *Server) createAnnotator(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.writeJSON(w, http.StatusCreated, annotatorResponse{ID: id, Kind: "llm", Label: req.Label, ModelID: &modelID})
+		s.writeJSON(w, http.StatusCreated, dto.AnnotatorResponse{ID: id, Kind: "llm", Label: req.Label, ModelID: &modelID})
 
 	default:
 		s.writeError(w, http.StatusBadRequest, "kind must be 'human' or 'llm'", nil)
 	}
 }
 
-// createPopulationRequest is the body of POST /api/populations, same knobs the curate CLI takes.
-// gameIds is empty for all games, or the picked external ids to restrict the freeze to.
-type createPopulationRequest struct {
-	Description     string  `json:"description"`
-	MinHoursPlayed  int     `json:"min_hours_played"`
-	PerGameCap      int     `json:"per_game_cap"`
-	ArtifactsCutoff string  `json:"artifacts_cutoff"`
-	GameIDs         []int32 `json:"game_ids"`
-}
-
-// createPopulationResponse is the 201 body: the new id, how many rows the freeze inserted, and the running total.
-type createPopulationResponse struct {
-	PopulationID        int32 `json:"population_id"`
-	InsertedIndividuals int64 `json:"inserted_individuals"`
-	TotalIndividuals    int64 `json:"total_individuals"`
-}
-
-// opsCriteria is the criteria JSON the curate CLI stores on the population row.
-type opsCriteria struct {
-	Modality        string    `json:"modality"`
-	MinHoursPlayed  int32     `json:"min_hours_played"`
-	PerGameCap      int       `json:"per_game_cap"`
-	ArtifactsCutoff time.Time `json:"artifacts_cutoff"`
-	GameIDs         []int32   `json:"game_ids,omitempty"`
-}
-
 // createPopulation creates a population, freezes a stratified sample into it, and reports the size.
 func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, ok := decodeJSON[createPopulationRequest](s, w, r)
+	req, ok := decodeJSON[dto.CreatePopulationRequest](s, w, r)
 	if !ok {
+		return
+	}
+
+	modality := req.Modality
+	if modality == "" {
+		modality = "text"
+	}
+	if modality != "text" && modality != "image" {
+		s.writeError(w, http.StatusBadRequest, "modality must be 'text' or 'image'", nil)
 		return
 	}
 
@@ -236,7 +193,7 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 		cut = t
 	}
 
-	critJSON, err := json.Marshal(opsCriteria{
+	critJSON, err := json.Marshal(dto.OpsCriteria{
 		Modality:        "text",
 		MinHoursPlayed:  int32(minHours),
 		PerGameCap:      perGame,
@@ -273,13 +230,24 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inserted, err := q.FreezeStratifiedPopulation(ctx, db.FreezeStratifiedPopulationParams{
-		PopulationID:    popID,
-		ArtifactsCutoff: pgtype.Timestamptz{Time: cut, Valid: true},
-		MinHoursPlayed:  int32(minHours),
-		PerGameCap:      int32(perGame),
-		GameIds:         req.GameIDs,
-	})
+	var inserted int64
+
+	if modality == "image" {
+		inserted, err = q.FreezeImagePopulation(ctx, db.FreezeImagePopulationParams{
+			PopulationID:    popID,
+			ArtifactsCutoff: pgtype.Timestamptz{Time: cut, Valid: true},
+			PerGameCap:      int32(perGame),
+		})
+	} else {
+		inserted, err = q.FreezeStratifiedPopulation(ctx, db.FreezeStratifiedPopulationParams{
+			PopulationID:    popID,
+			ArtifactsCutoff: pgtype.Timestamptz{Time: cut, Valid: true},
+			MinHoursPlayed:  int32(minHours),
+			PerGameCap:      int32(perGame),
+			GameIds:         req.GameIDs,
+		})
+	}
+
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "freeze population", err)
 		return
@@ -296,38 +264,18 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.writeJSON(w, http.StatusCreated, createPopulationResponse{
+	s.writeJSON(w, http.StatusCreated, dto.CreatePopulationResponse{
 		PopulationID:        popID,
 		InsertedIndividuals: inserted,
 		TotalIndividuals:    total,
 	})
 }
 
-// createRunRequest is the body of POST /api/runs, same inputs cmd/run takes.
-type createRunRequest struct {
-	PopulationID    int32   `json:"population_id"`
-	PromptID        int32   `json:"prompt_id"`
-	TaxonomyVersion int32   `json:"taxonomy_version"`
-	RunType         string  `json:"run_type"`
-	Temperature     float64 `json:"temperature"`
-	AnnotatorIDs    []int32 `json:"annotator_ids"`
-}
-
-// createRunResponse is the 201 body of POST /api/runs, echoes the resolved run back.
-type createRunResponse struct {
-	RunID           int32   `json:"run_id"`
-	RunType         string  `json:"run_type"`
-	PopulationID    int32   `json:"population_id"`
-	PromptID        int32   `json:"prompt_id"`
-	TaxonomyVersion int32   `json:"taxonomy_version"`
-	AnnotatorIDs    []int32 `json:"annotator_ids"`
-}
-
 // createRun validates the inputs exactly as the run CLI does, then inserts the run row.
 func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, ok := decodeJSON[createRunRequest](s, w, r)
+	req, ok := decodeJSON[dto.CreateRunRequest](s, w, r)
 	if !ok {
 		return
 	}
@@ -378,7 +326,7 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.writeJSON(w, http.StatusCreated, createRunResponse{
+	s.writeJSON(w, http.StatusCreated, dto.CreateRunResponse{
 		RunID:           runID,
 		RunType:         runType,
 		PopulationID:    req.PopulationID,
@@ -388,18 +336,10 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// scrapeRequest is the body of POST /api/scrapes, same args as steam enqueue. App is the steam app id as a string.
-type scrapeRequest struct {
-	App    string `json:"app"`
-	Filter string `json:"filter"`
-	Lang   string `json:"lang"`
-	Max    int    `json:"max"`
-}
-
 // createScrape enqueues the first scrape job for a game, exactly like the steam CLI
 func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
 
-	req, ok := decodeJSON[scrapeRequest](s, w, r)
+	req, ok := decodeJSON[dto.ScrapeRequest](s, w, r)
 	if !ok {
 		return
 	}
@@ -502,4 +442,94 @@ func (s *Server) panelRegistry(ctx context.Context) (map[string]annotate.Annotat
 	}
 
 	return registry, nil
+}
+
+func (s *Server) createImages(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, ok := decodeJSON[dto.UploadImagesRequest](s, w, r)
+	if !ok {
+		return
+	}
+
+	if req.GameID <= 0 {
+		s.writeError(w, http.StatusBadRequest, "game_id must be a positive integer", nil)
+		return
+	}
+
+	if len(req.Images) == 0 {
+		s.writeError(w, http.StatusBadRequest, "at least one image is required", nil)
+		return
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "begin tx", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	q := db.New(tx)
+	now := time.Now()
+	ids := make([]int64, 0, len(req.Images))
+
+	for _, img := range req.Images {
+		raw, err := base64.StdEncoding.DecodeString(img.Data)
+		if err != nil {
+			s.writeError(w, http.StatusBadRequest, "data must be base64", err)
+			return
+		}
+
+		mime := img.MimeType
+		if mime == "" {
+			mime = "image/png"
+		}
+
+		sum := sha256.Sum256(raw)
+		dataURI := fmt.Sprintf("data:%s;base64,%s", mime, img.Data)
+		sourceID := fmt.Sprintf("upload-%d-%x", req.GameID, sum[:8])
+
+		artifactID, err := q.UpsertArtifact(ctx, db.UpsertArtifactParams{
+			Modality:       "image",
+			Source:         "upload",
+			SourceID:       &sourceID,
+			ContentHash:    sum[:],
+			ScrapedAt:      pgtype.Timestamptz{Time: now, Valid: true},
+			ExternalGameID: req.GameID,
+		})
+		if err != nil {
+			s.writeError(w, http.StatusInternalServerError, "store artifact", err)
+			return
+		}
+
+		var desc *string
+		if img.Description != "" {
+			desc = &img.Description
+		}
+
+		mimeCopy := mime
+		if err := q.UpsertImageDetail(ctx, db.UpsertImageDetailParams{
+			ArtifactID:  artifactID,
+			ImageUri:    dataURI,
+			MimeType:    &mimeCopy,
+			Description: desc,
+		}); err != nil {
+			s.writeError(w, http.StatusInternalServerError, "store image detail", err)
+			return
+		}
+
+		ids = append(ids, artifactID)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		s.writeError(w, http.StatusInternalServerError, "commit tx", err)
+		return
+	}
+
+	s.writeJSON(w, http.StatusCreated, dto.UploadImagesResponse{
+		Uploaded: len(ids),
+		GameID:   req.GameID,
+		ImageIDs: ids,
+	})
+
 }

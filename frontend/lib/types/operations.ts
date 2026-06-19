@@ -39,9 +39,9 @@ export type CreatePopulationInput = {
     description?: string;
     min_hours_played?: number;
     per_game_cap?: number;
-    artifacts_cutoff?: string; // RFC3339
-    // external game ids to include. omit or leave empty to use every game.
+    artifacts_cutoff?: string; // RFC3339 timestamp
     game_ids?: number[];
+    modality?: "text" | "image"
 };
 
 export type CreatePopulationResult = {

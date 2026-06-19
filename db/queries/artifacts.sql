@@ -21,5 +21,9 @@ ON CONFLICT (artifact_id) DO UPDATE
 SELECT * FROM artifacts WHERE id = $1;
 
 -- name: CountArtifactsBySource :one
-
 SELECT COUNT(*) FROM artifacts WHERE source = $1 AND modality = $2;
+
+-- name: UpsertImageDetail :exec
+INSERT INTO image_details (artifact_id, image_uri, width, height, mime_type, ocr_text, description)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT DO NOTHING;

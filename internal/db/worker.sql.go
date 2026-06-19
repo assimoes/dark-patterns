@@ -9,6 +9,33 @@ import (
 	"context"
 )
 
+const getImageForIndividual = `-- name: GetImageForIndividual :one
+SELECT a.id AS artifact_id, img.image_uri, img.mime_type, COALESCE(img.ocr_text, '')::text AS ocr_text
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN image_details img ON img.artifact_id = a.id
+WHERE i.id = $1
+`
+
+type GetImageForIndividualRow struct {
+	ArtifactID int64   `json:"artifact_id"`
+	ImageUri   string  `json:"image_uri"`
+	MimeType   *string `json:"mime_type"`
+	OcrText    string  `json:"ocr_text"`
+}
+
+func (q *Queries) GetImageForIndividual(ctx context.Context, id int64) (GetImageForIndividualRow, error) {
+	row := q.db.QueryRow(ctx, getImageForIndividual, id)
+	var i GetImageForIndividualRow
+	err := row.Scan(
+		&i.ArtifactID,
+		&i.ImageUri,
+		&i.MimeType,
+		&i.OcrText,
+	)
+	return i, err
+}
+
 const getTextReviewForIndividual = `-- name: GetTextReviewForIndividual :one
 SELECT a.id AS artifact_id, td.body, td.voted_up, td.lang
 FROM individuals i
