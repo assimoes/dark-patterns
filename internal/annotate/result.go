@@ -18,7 +18,7 @@ type Result struct {
 	Patterns []Detected `json:"patterns"`
 }
 
-// Parse unmarshals a model reply into a Result. A bad body is the parse_error case.
+// Parse unmarshals a model reply into a Result. a bad body is the parse_error case.
 func Parse(raw json.RawMessage) (Result, error) {
 	var r Result
 

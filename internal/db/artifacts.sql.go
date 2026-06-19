@@ -64,7 +64,7 @@ type UpsertArtifactParams struct {
 	ExternalGameID int32              `json:"external_game_id"`
 }
 
-// Idempotent on source_id; DO UPDATE instead of DO NOTHING because we want it to always return the id even on re-scrape.
+// idempotent on source_id; DO UPDATE because we want it to always return the id even on re-scrape.
 // ON CONFLICT we update the scraped_at date.
 func (q *Queries) UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) (int64, error) {
 	row := q.db.QueryRow(ctx, upsertArtifact,
@@ -110,33 +110,27 @@ func (q *Queries) UpsertImageDetail(ctx context.Context, arg UpsertImageDetailPa
 }
 
 const upsertTextReviewDetail = `-- name: UpsertTextReviewDetail :exec
-INSERT INTO text_review_details (artifact_id, body, voted_up, hours_played, lang, weighted_vote_score)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO text_review_details (artifact_id, body, lang, source_meta)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT (artifact_id) DO UPDATE
-    SET voted_up = EXCLUDED.voted_up,
-        hours_played = EXCLUDED.hours_played
+    SET source_meta = EXCLUDED.source_meta
 `
 
 type UpsertTextReviewDetailParams struct {
-	ArtifactID        int64          `json:"artifact_id"`
-	Body              string         `json:"body"`
-	VotedUp           bool           `json:"voted_up"`
-	HoursPlayed       int32          `json:"hours_played"`
-	Lang              string         `json:"lang"`
-	WeightedVoteScore pgtype.Numeric `json:"weighted_vote_score"`
+	ArtifactID int64  `json:"artifact_id"`
+	Body       string `json:"body"`
+	Lang       string `json:"lang"`
+	SourceMeta []byte `json:"source_meta"`
 }
 
-// On re-scrape we only refresh the volatile signal (votes, hours).
-// body, lang and score stay as first seen on purpose, so annotation always line up with the text they ran on.
-// An edited review is a new artifact if we ever want to recapture it.
+// text channel: body and lang are universal, source_meta holds everything source-specific
+// (Steam voted_up/hours/score, Reddit subreddit/post_id). on re-scrape we refresh source_meta.
 func (q *Queries) UpsertTextReviewDetail(ctx context.Context, arg UpsertTextReviewDetailParams) error {
 	_, err := q.db.Exec(ctx, upsertTextReviewDetail,
 		arg.ArtifactID,
 		arg.Body,
-		arg.VotedUp,
-		arg.HoursPlayed,
 		arg.Lang,
-		arg.WeightedVoteScore,
+		arg.SourceMeta,
 	)
 	return err
 }

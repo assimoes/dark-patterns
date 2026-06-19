@@ -142,7 +142,7 @@ type ListLLMAnnotatorsRow struct {
 	Family string `json:"family"`
 }
 
-// The active LLM panel fetch from the DB with each annotator with its model slug
+// the active LLM panel fetch from the DB with each annotator with its model slug
 func (q *Queries) ListLLMAnnotators(ctx context.Context) ([]ListLLMAnnotatorsRow, error) {
 	rows, err := q.db.Query(ctx, listLLMAnnotators)
 	if err != nil {

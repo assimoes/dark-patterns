@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -27,13 +28,12 @@ func seedReview(
 		t.Fatalf("seed artifact %s: %v", srcID, err)
 	}
 
+	meta, _ := json.Marshal(map[string]any{"voted_up": true, "hours_played": hours})
 	if err := q.UpsertTextReviewDetail(ctx, UpsertTextReviewDetailParams{
-		ArtifactID:        id,
-		Body:              body,
-		VotedUp:           true,
-		HoursPlayed:       hours,
-		Lang:              "english",
-		WeightedVoteScore: pgtype.Numeric{},
+		ArtifactID: id,
+		Body:       body,
+		Lang:       "english",
+		SourceMeta: meta,
 	}); err != nil {
 		t.Fatalf("seed review %s: %v", srcID, err)
 	}
@@ -52,16 +52,12 @@ func TestStratifiedPopulation(t *testing.T) {
 
 	q := New(tx)
 
-	// freeze scans the whole artifacts table, so clear it first — this test should
-	// only see its own seeds. Rolled back with the tx.
 	if _, err := tx.Exec(ctx, "TRUNCATE artifacts CASCADE"); err != nil {
 		t.Fatalf("truncate artifacts: %v", err)
 	}
 
 	cutoff := time.Now()
-	// eligible
 	before := cutoff.Add(-time.Hour)
-	// exclude
 	after := cutoff.Add(time.Hour)
 
 	longBody := "this games gates progress behind a paywall. Classic pay to win with very predatory monetisation indeed"
@@ -110,8 +106,6 @@ func TestStratifiedPopulation(t *testing.T) {
 	if count != 3 {
 		t.Fatalf("population should hold 3 individuals, got %d", count)
 	}
-
-	// refreeze should be idempotent
 
 	again, err := q.FreezeStratifiedPopulation(ctx, FreezeStratifiedPopulationParams{
 		PopulationID:    popID,

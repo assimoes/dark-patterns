@@ -121,7 +121,7 @@ type FreezeMultimodalPopulationParams struct {
 }
 
 // a multimodal artifact has both channels, so this joins both detail tables: only artifacts with a body
-// AND an image are frozen in. same cap and cutoff as the image freeze, no hours filter.
+// and an image are frozen.
 func (q *Queries) FreezeMultimodalPopulation(ctx context.Context, arg FreezeMultimodalPopulationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, freezeMultimodalPopulation, arg.PopulationID, arg.ArtifactsCutoff, arg.PerGameCap)
 	if err != nil {
@@ -143,9 +143,7 @@ FROM (
     JOIN text_review_details td ON td.artifact_id = a.id
     WHERE a.modality = 'text'
         AND a.scraped_at <= $2
-        AND td.hours_played >= $3::int
-        -- an empty or null game list means all games, otherwise keep only the picked ones. coalesce so
-        -- a null array reads as 0, same as empty, instead of dropping every row.
+        AND ($3::int <= 0 OR (td.source_meta->>'hours_played')::int >= $3::int)
         AND (coalesce(cardinality($4::int[]), 0) = 0 OR a.external_game_id = ANY($4::int[]))
 ) ranked
 WHERE ranked.rn <= $5::int
@@ -180,21 +178,21 @@ FROM artifacts a
 JOIN text_review_details td ON td.artifact_id = a.id
 WHERE a.modality = 'text'
     AND a.scraped_at <= $1
-    AND td.hours_played >= $2
+    AND (td.source_meta->>'hours_played')::int >= $2
 `
 
 type SelectTextReviewsFromPopulationParams struct {
-	ScrapedAt   pgtype.Timestamptz `json:"scraped_at"`
-	HoursPlayed int32              `json:"hours_played"`
+	ScrapedAt  pgtype.Timestamptz `json:"scraped_at"`
+	SourceMeta []byte             `json:"source_meta"`
 }
 
 type SelectTextReviewsFromPopulationRow struct {
 }
 
-// Representative selection with common filters and the cutoff
-// Criteria need dynamic SQL
+// representative selection with common filters and the cutoff
+// criteria need dynamic SQL
 func (q *Queries) SelectTextReviewsFromPopulation(ctx context.Context, arg SelectTextReviewsFromPopulationParams) ([]SelectTextReviewsFromPopulationRow, error) {
-	rows, err := q.db.Query(ctx, selectTextReviewsFromPopulation, arg.ScrapedAt, arg.HoursPlayed)
+	rows, err := q.db.Query(ctx, selectTextReviewsFromPopulation, arg.ScrapedAt, arg.SourceMeta)
 	if err != nil {
 		return nil, err
 	}

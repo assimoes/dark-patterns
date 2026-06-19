@@ -17,7 +17,7 @@ SELECT * FROM annotators ORDER BY kind, label;
 SELECT * FROM annotators WHERE id = ANY(sqlc.arg(ids)::int[]) ORDER BY id;
 
 -- name: ListLLMAnnotators :many
--- The active LLM panel fetch from the DB with each annotator with its model slug
+-- the active LLM panel fetch from the DB with each annotator with its model slug
 SELECT
     a.id,
     a.label,

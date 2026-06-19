@@ -10,180 +10,174 @@ import (
 
 type Querier interface {
 	AddIndividual(ctx context.Context, arg AddIndividualParams) error
-	// The candidate pool for a sample: every completed review in the population, tagged with its stratum.
-	// A review is classified by the panel's per-pattern votes: flagged_majority if any pattern reached a
+	// the candidate pool for a sample: every completed review in the population, tagged with its stratum.
+	// a review is classified by the panels per-pattern votes: flagged_majority if any pattern reached a
 	// majority Present (n_present*2 > n_total), else flagged_split if any pattern had Present votes without
 	// a majority (the panel disagreed), else silent (no pattern got a single Present vote).
 	ClassifyReviewsForSampling(ctx context.Context, arg ClassifyReviewsForSamplingParams) ([]ClassifyReviewsForSamplingRow, error)
 	// gold run: how many patterns are decided per review, to show progress on the worklist.
 	CountAdjudicationsPerReview(ctx context.Context, runID int32) ([]CountAdjudicationsPerReviewRow, error)
 	CountArtifactsBySource(ctx context.Context, arg CountArtifactsBySourceParams) (int64, error)
-	// How many panel members completed this review (the denominator for every pattern's vote).
+	// how many panel members completed this review (the denominator for every patterns vote).
 	CountCompletedRaters(ctx context.Context, arg CountCompletedRatersParams) (int32, error)
 	CountIndividuals(ctx context.Context, populationID int32) (int64, error)
-	// Curated individuals (reviews in a population) per game, across every population.
+	// curated individuals (reviews in a population) per game, across every population.
 	CountIndividualsPerGame(ctx context.Context) ([]CountIndividualsPerGameRow, error)
 	CreateAnnotator(ctx context.Context, arg CreateAnnotatorParams) (int32, error)
 	CreatePopulation(ctx context.Context, arg CreatePopulationParams) (int32, error)
 	CreatePrompt(ctx context.Context, arg CreatePromptParams) (int32, error)
 	CreateRun(ctx context.Context, arg CreateRunParams) (int32, error)
-	// Clear prior pattern rows before re-writing, so a retry doesn't leave stale ones.
+	// clear prior pattern rows before re-writing, so a retry doesnt leave stale ones.
 	DeleteAnnotationPatterns(ctx context.Context, annotationID int64) error
 	FreezeImagePopulation(ctx context.Context, arg FreezeImagePopulationParams) (int64, error)
 	// a multimodal artifact has both channels, so this joins both detail tables: only artifacts with a body
-	// AND an image are frozen in. same cap and cutoff as the image freeze, no hours filter.
+	// and an image are frozen.
 	FreezeMultimodalPopulation(ctx context.Context, arg FreezeMultimodalPopulationParams) (int64, error)
 	FreezeStratifiedPopulation(ctx context.Context, arg FreezeStratifiedPopulationParams) (int64, error)
 	GameReviewTotals(ctx context.Context) ([]GameReviewTotalsRow, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
-	// The most recent gold run for a population. Adjudication samples and decisions write into one gold
+	// the most recent gold run for a population. adjudication samples and decisions write into one gold
 	// run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
 	GetGoldRunForPopulation(ctx context.Context, populationID int32) (int32, error)
 	GetImageForIndividual(ctx context.Context, id int64) (GetImageForIndividualRow, error)
 	GetLLMAnnotatorByModel(ctx context.Context, modelID *int32) (Annotator, error)
 	GetLatestPrompt(ctx context.Context, name string) (Prompt, error)
-	// The most recent sample drawn for a panel run, to reopen its queue.
+	// the most recent sample drawn for a panel run, to reopen its queue.
 	GetLatestSampleForRun(ctx context.Context, panelRunID int32) (AdjudicationSample, error)
 	GetMesoPatternCodes(ctx context.Context, version int32) ([]GetMesoPatternCodesRow, error)
 	GetModelBySlug(ctx context.Context, slug string) (Model, error)
 	// a multimodal item carries both channels: a text body and an image. inner-joining both detail tables
 	// means it only returns artifacts that actually have both, which is exactly the multimodal case.
 	GetMultimodalForIndividual(ctx context.Context, id int64) (GetMultimodalForIndividualRow, error)
-	// The llm panel run whose votes seed a decision on this review. One panel per population; pick the
+	// the llm panel run whose votes seed a decision on this review. one panel per population; pick the
 	// most recent so the frozen seed reflects the panel the auditor is actually looking at.
 	GetPanelRunForReview(ctx context.Context, individualID int64) (int32, error)
-	// The panel's verdict for one (run, individual, pattern)
+	// the panels verdict for one (run, individual, pattern)
 	GetPanelVoteForCell(ctx context.Context, arg GetPanelVoteForCellParams) (GetPanelVoteForCellRow, error)
-	// Resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id, within a taxonomy
-	// version. Code is unique only per (code, version), so the version is required or the wrong version's
-	// id comes back — which would make a saved adjudication unreadable against the run's actual taxonomy.
+	// resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id, within a taxonomy
+	// version. code is unique only per (code, version), so the version is required or the wrong versions
+	// id comes back — which would make a saved adjudication unreadable against the runs actual taxonomy.
 	GetPatternIDByCode(ctx context.Context, arg GetPatternIDByCodeParams) (int32, error)
-	// One population row by id, for the population/run detail headers (modality, description, created_at).
+	// one population row by id, for the population/run detail headers (modality, description, created_at).
 	GetPopulation(ctx context.Context, id int32) (GetPopulationRow, error)
 	GetPrompt(ctx context.Context, id int32) (Prompt, error)
 	GetPromptByNameVersion(ctx context.Context, arg GetPromptByNameVersionParams) (Prompt, error)
-	// The review header for the auditor/blind views: what to render plus the game. modality says which
-	// branch to render, so the joins are LEFT and the columns coalesced, a text review has no image_uri and
-	// an image review has no body.
+	// the review header for the auditor/blind views
 	GetReviewMeta(ctx context.Context, individualID int64) (GetReviewMetaRow, error)
-	// The review body to render for the auditor
+	// the review body to render for the auditor
 	GetReviewText(ctx context.Context, individualID int64) (string, error)
 	GetRun(ctx context.Context, id int32) (Run, error)
 	GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error)
-	// text-specific query
+	// text-specific query. body and lang only
 	GetTextReviewForIndividual(ctx context.Context, id int64) (GetTextReviewForIndividualRow, error)
-	// The sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
+	// the sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
 	InsertAdjudicationSample(ctx context.Context, arg InsertAdjudicationSampleParams) (int64, error)
-	// One frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
+	// one frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
 	InsertAdjudicationSampleItem(ctx context.Context, arg InsertAdjudicationSampleItemParams) error
 	InsertAnnotationPattern(ctx context.Context, arg InsertAnnotationPatternParams) error
-	// Register a game so it appears on the dashboard list and can be scraped.
+	// register a game so it appears on the dashboard list and can be scraped.
 	InsertGameDisplay(ctx context.Context, arg InsertGameDisplayParams) (GameDisplay, error)
 	ListActiveModels(ctx context.Context) ([]Model, error)
 	ListActiveModelsByModality(ctx context.Context, dollar_1 string) ([]Model, error)
 	ListAnnotators(ctx context.Context) ([]Annotator, error)
 	ListAnnotatorsByIDs(ctx context.Context, ids []int32) ([]Annotator, error)
-	// Every annotator as a form option, carrying the display model name for llm annotators (NULL for
+	// every annotator as a form option, carrying the display model name for llm annotators (NULL for
 	// humans). ListAnnotators returns the raw rows with only a model_id; this resolves the name in SQL so
 	// the API never has to look models up one by one.
 	ListAnnotatorsWithModel(ctx context.Context) ([]ListAnnotatorsWithModelRow, error)
 	// gold run
 	ListDedicedCells(ctx context.Context, runID int32) ([]ListDedicedCellsRow, error)
-	// The curated games with their presentation metadata. external_game_id is the stable id
+	// the curated games with their presentation metadata. external_game_id is the stable id
 	// the frontend uses as `gameId`; the rest are display-only fields the pipeline never needed.
 	ListGameDisplays(ctx context.Context) ([]GameDisplay, error)
-	// The strategic-intent parents used by a pinned meso version
+	// the strategic-intent parents used by a pinned meso version
 	ListHighLevelsForMesoVersion(ctx context.Context, version int32) ([]ListHighLevelsForMesoVersionRow, error)
-	// The active LLM panel fetch from the DB with each annotator with its model slug
+	// the active LLM panel fetch from the DB with each annotator with its model slug
 	ListLLMAnnotators(ctx context.Context) ([]ListLLMAnnotatorsRow, error)
-	// The panel members of a run: every annotator referenced by runs.annotator_ids, with the kind
+	// the panel members of a run: every annotator referenced by runs.annotator_ids, with the kind
 	// (llm | human) and a display label. LLM members carry their model name, humans their own label.
 	ListMembersForRun(ctx context.Context, runID int32) ([]ListMembersForRunRow, error)
-	// The taxonomy as of a pinned version
+	// the taxonomy as of a pinned version
 	ListMesoPatternsByVersion(ctx context.Context, version int32) ([]ListMesoPatternsByVersionRow, error)
-	// Per-rater verdicts with each model's own evidence and explanation
+	// per-rater verdicts with each models own evidence and explanation
 	ListPanelVotesForCell(ctx context.Context, arg ListPanelVotesForCellParams) ([]ListPanelVotesForCellRow, error)
-	// Every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
-	// still appears with a zero count. Newest first, the order an operator picking a population wants.
+	// every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
+	// still appears with a zero count. newest first, the order an operator picking a population wants.
 	ListPopulations(ctx context.Context) ([]ListPopulationsRow, error)
-	// The populations that contain this game's reviews, each with the game's slice: how many of the
-	// game's individuals fall in the population, and how many of those have a completed annotation. A
-	// population is multi-game (stratified, per-game capped), so this is THIS game's part of it. Counts
+	// the populations that contain this games reviews, each with the games slice: how many of the
+	// games individuals fall in the population, and how many of those have a completed annotation. a
+	// population is multi-game (stratified, per-game capped), so this is THIS games part of it. counts
 	// are per population, never summed across them.
 	ListPopulationsForGame(ctx context.Context, externalGameID int32) ([]ListPopulationsForGameRow, error)
-	// Every prompt as a form option: its id, name, version and modality. Ordered by id for a stable list.
+	// every prompt as a form option: its id, name, version and modality. ordered by id for a stable list.
 	ListPrompts(ctx context.Context) ([]ListPromptsRow, error)
-	// Existing gold labels for one review in one pass, to pre-fill the checkboxes on revisit. the blind
+	// existing gold labels for one review in one pass, to pre-fill the checkboxes on revisit. the blind
 	// read asks for pass='blind' so it never sees the open-pass labels, and the other way round.
 	ListReviewAdjudications(ctx context.Context, arg ListReviewAdjudicationsParams) ([]ListReviewAdjudicationsRow, error)
-	// Every panel member's detection for one review, across all patterns: who flagged what, with their
+	// every panel members detection for one review, across all patterns: who flagged what, with their
 	// evidence and explanation. annotation_patterns holds positives only, so a row means that model
 	// detected that pattern on this review.
 	ListReviewDetections(ctx context.Context, arg ListReviewDetectionsParams) ([]ListReviewDetectionsRow, error)
-	// Read the frozen panel.
+	// read the frozen panel.
 	ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error)
-	// Every run with what an operator needs to recognise and pick it: its type, the population modality as a
+	// every run with what an operator needs to recognise and pick it: its type, the population modality as a
 	// label, the foreign keys, the taxonomy version, when it ran, and the size of the panel it pinned.
 	ListRuns(ctx context.Context) ([]ListRunsRow, error)
 	ListRunsByPopulation(ctx context.Context, populationID int32) ([]Run, error)
-	// One row per run with its population's modality as a human label and its creation time.
+	// one row per run with its populations modality as a human label and its creation time.
 	// annotator_ids is the panel the run pinned; members are resolved separately per run.
 	ListRunsForDashboard(ctx context.Context) ([]ListRunsForDashboardRow, error)
-	// The queue for a sample: each selected review with the text/vote/language to render and a `decided`
-	// count of how many of its patterns already have a gold label in the sample's gold run, for the pass
-	// the screen is on. the open and blind worklists pass their own pass so each shows its own progress.
-	// Joining the per-review adjudication count in SQL keeps the worklist's progress one query, not N.
+	// the queue for a sample
 	ListSampleReviews(ctx context.Context, arg ListSampleReviewsParams) ([]ListSampleReviewsRow, error)
-	// The full MESO codebook for a version: code, name, definition, and the family it sits under.
+	// the full MESO codebook for a version: code, name, definition, and the family it sits under.
 	ListTaxonomy(ctx context.Context, version int32) ([]ListTaxonomyRow, error)
-	// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
+	// the annotation workers queue: items in the runs population not yet successfully annotated by an annotator
 	ListUnannotatedTextReviews(ctx context.Context, arg ListUnannotatedTextReviewsParams) ([]ListUnannotatedTextReviewsRow, error)
-	// The work queue for one panel member.
-	// Modality agnostic
+	// the work queue for one panel member.
+	// modality agnostic
 	ListUnnanotatedIndividuals(ctx context.Context, arg ListUnnanotatedIndividualsParams) ([]int64, error)
-	// Per LLM model, the number of DISTINCT reviews of one game annotated within one population. Counting
+	// per LLM model, the number of DISTINCT reviews of one game annotated within one population. counting
 	// distinct individuals (not annotation rows) and scoping to a single population makes the models
 	// comparable: inside one population they all share the same work set, so a complete run shows every
-	// model at the population's slice size, not a runaway sum across runs.
+	// model at the populations slice size, not a runaway sum across runs.
 	ModelStatsForGamePopulation(ctx context.Context, arg ModelStatsForGamePopulationParams) ([]ModelStatsForGamePopulationRow, error)
 	ModelStatsForGameRun(ctx context.Context, arg ModelStatsForGameRunParams) ([]ModelStatsForGameRunRow, error)
-	// The panel that worked a population: every annotator frozen onto any of the population's runs, with
-	// its kind (llm | human) and a display label (the model name for an llm, the annotator's own label
+	// the panel that worked a population: every annotator frozen onto any of the populations runs, with
+	// its kind (llm | human) and a display label (the model name for an llm, the annotators own label
 	// for a human). run_annotators is the single source of "who annotates this run".
 	PanelForPopulation(ctx context.Context, populationID int32) ([]PanelForPopulationRow, error)
-	// For one population, its per-game slice: how many of the population's reviews belong to each game and
-	// how many of those have a completed annotation. Mirrors ListPopulationsForGame but pivots to group by
+	// for one population, its per-game slice: how many of the populations reviews belong to each game and
+	// how many of those have a completed annotation. mirrors ListPopulationsForGame but pivots to group by
 	// game within a single population instead of by population within a single game.
 	PopulationPerGame(ctx context.Context, populationID int32) ([]PopulationPerGameRow, error)
 	ReviewStatsPerGame(ctx context.Context) ([]ReviewStatsPerGameRow, error)
-	// Fixed N individuals per game from the population, ordered deterministically
-	// Always yields the same subset.
-	// Drops any review where a panel member didn't 'complete' (>=1 parse_error) for the panel run
+	// fixed N individuals per game from the population, ordered deterministically
+	// always yields the same subset.
+	// drops any review where a panel member didnt 'complete' (>=1 parse_error) for the panel run
 	SampleStratifiedIndividuals(ctx context.Context, arg SampleStratifiedIndividualsParams) ([]SampleStratifiedIndividualsRow, error)
-	// Representative selection with common filters and the cutoff
-	// Criteria need dynamic SQL
+	// representative selection with common filters and the cutoff
+	// criteria need dynamic SQL
 	SelectTextReviewsFromPopulation(ctx context.Context, arg SelectTextReviewsFromPopulationParams) ([]SelectTextReviewsFromPopulationRow, error)
-	// Stamp the digest once. A second snapshot is a no-op
+	// stamp the digest once. a second snapshot is a no-op
 	SetRunConfigDigest(ctx context.Context, arg SetRunConfigDigestParams) error
-	// Freeze one panel member
+	// freeze one panel member
 	SnapshotRunAnnotator(ctx context.Context, arg SnapshotRunAnnotatorParams) error
-	// Re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
+	// re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
 	// the panel seed at the new decision time. pass keeps the open and blind labels for a cell apart, so
 	// saving one never touches the other.
 	UpsertAdjudication(ctx context.Context, arg UpsertAdjudicationParams) error
-	// Idempotent. The WHERE guard means an already completed annotation is not touched
-	// Returning yields no rows in this case, and the worker treats it as already done
+	// idempotent. the WHERE guard means an already completed annotation is not touched
+	// returning yields no rows in this case, and the worker treats it as already done
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) (int64, error)
-	// Idempotent on source_id; DO UPDATE instead of DO NOTHING because we want it to always return the id even on re-scrape.
+	// idempotent on source_id; DO UPDATE because we want it to always return the id even on re-scrape.
 	// ON CONFLICT we update the scraped_at date.
 	UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) (int64, error)
 	UpsertImageDetail(ctx context.Context, arg UpsertImageDetailParams) error
 	UpsertModel(ctx context.Context, arg UpsertModelParams) (int32, error)
 	UpsertScrapeCursor(ctx context.Context, arg UpsertScrapeCursorParams) error
-	// On re-scrape we only refresh the volatile signal (votes, hours).
-	// body, lang and score stay as first seen on purpose, so annotation always line up with the text they ran on.
-	// An edited review is a new artifact if we ever want to recapture it.
+	// text channel: body and lang are universal, source_meta holds everything source-specific
+	// (Steam voted_up/hours/score, Reddit subreddit/post_id). on re-scrape we refresh source_meta.
 	UpsertTextReviewDetail(ctx context.Context, arg UpsertTextReviewDetailParams) error
 }
 

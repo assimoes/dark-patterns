@@ -42,7 +42,7 @@ type ResponseMeta struct {
 	Extra             json.RawMessage `json:"extra,omitempty"`
 }
 
-// JSON marshals the meta for storage. No unmarshalable fields, err cant happen.
+// JSON marshals the meta for storage. no unmarshalable fields, err cant happen.
 func (m ResponseMeta) JSON() json.RawMessage {
 	b, _ := json.Marshal(m)
 	return b
@@ -54,7 +54,7 @@ type Output struct {
 	Meta ResponseMeta
 }
 
-// Annotator is anything that can label one item. Real models and the fake both satisfy it.
+// Annotator is anything that can label one item. real models and the fake both satisfy it.
 type Annotator interface {
 	Annotate(ctx context.Context, in Input) (Output, error)
 	Identity() RunIdentity

@@ -1,6 +1,6 @@
 -- name: GetTextReviewForIndividual :one
--- text-specific query
-SELECT a.id AS artifact_id, td.body, td.voted_up, td.lang
+-- text-specific query. body and lang only
+SELECT a.id AS artifact_id, td.body, td.lang
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN text_review_details td on td.artifact_id = a.id
@@ -8,8 +8,8 @@ WHERE i.id = $1;
 
 
 -- name: ListUnnanotatedIndividuals :many
--- The work queue for one panel member.
--- Modality agnostic
+-- the work queue for one panel member.
+-- modality agnostic
 SELECT
     i.id as individual_id
 FROM runs r

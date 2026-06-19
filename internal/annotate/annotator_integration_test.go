@@ -37,9 +37,6 @@ func seedRun(t *testing.T, pool *pgxpool.Pool) (db.Run, db.Prompt, []int64) {
 	t.Helper()
 	ctx := context.Background()
 
-	// the integration db is shared, so this test owns a fixed footprint (the sentinel game id and its
-	// named rows). clear it before seeding so a leftover from a crashed run does not collide, and clear
-	// it again after via t.Cleanup, which runs even when the test fails.
 	cleanSnapshotTestData(ctx, pool)
 	t.Cleanup(func() { cleanSnapshotTestData(context.Background(), pool) })
 
@@ -142,7 +139,7 @@ func seedRun(t *testing.T, pool *pgxpool.Pool) (db.Run, db.Prompt, []int64) {
 }
 
 // cleanSnapshotTestData removes everything seedRun writes, in foreign-key-safe order: children before
-// parents, keyed on the sentinel game id and the test's named rows. errors are ignored so a clean run
+// parents, keyed on the sentinel game id and the tests named rows. errors are ignored so a clean run
 // against an already-empty db is a no-op. the model row is left alone, UpsertModel is idempotent.
 func cleanSnapshotTestData(ctx context.Context, pool *pgxpool.Pool) {
 	exec := func(sql string, args ...any) { _, _ = pool.Exec(ctx, sql, args...) }
@@ -184,13 +181,11 @@ func TestSnapshotAndAnnotate(t *testing.T) {
 
 	registry := map[string]Annotator{"test-model": fake}
 
-	// load taxonomy
 	tax, err := LoadTaxonomy(ctx, q, *run.TaxonomyVersion)
 	if err != nil {
 		t.Fatalf("load taxonomy: %v", err)
 	}
 
-	// freeze the panel
 	if err := SnapshotPanel(ctx, q, run, prompt, tax, registry); err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
@@ -204,13 +199,10 @@ func TestSnapshotAndAnnotate(t *testing.T) {
 		t.Fatalf("frozen panel: %+v", err)
 	}
 
-	// run config_digest should be stamped
 	got, _ := q.GetRun(ctx, run.ID)
 	if got.ConfigDigest == nil || *got.ConfigDigest == "" {
 		t.Fatal("config_digest not stamped")
 	}
-
-	// annotate each individual with the frozen panel member
 
 	tmpl, _ := template.New("prompt").Parse(prompt.Template)
 
@@ -230,8 +222,6 @@ func TestSnapshotAndAnnotate(t *testing.T) {
 			t.Fatalf("annotate %d: %v", indID, err)
 		}
 	}
-
-	// assert
 
 	var completed, withMeta int
 
@@ -255,8 +245,6 @@ func TestSnapshotAndAnnotate(t *testing.T) {
 	if patterns != 2 {
 		t.Fatalf("PM-1 patterns: want 2, got %d", patterns)
 	}
-
-	// ensure idempotency
 
 	for _, indID := range indIDs {
 		if err := Annotate(ctx, pool, rc, tax, fake, TextLoader{}, run.ID, panel[0].AnnotatorID, indID); err != nil {

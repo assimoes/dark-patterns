@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -92,25 +93,34 @@ func TestTextReviewParams(t *testing.T) {
 		t.Fatalf("artifact id: want 42, got %d", p.ArtifactID)
 	}
 
-	if p.HoursPlayed != 2 {
-		t.Fatalf("hours: want 2 (truncated from 150 minutes), got %d", p.HoursPlayed)
-	}
-
-	if p.Body != "great" || !p.VotedUp || p.Lang != "english" {
+	if p.Body != "great" || p.Lang != "english" {
 		t.Fatalf("field mapping mismatch: %v", p)
 	}
 
-	if !p.WeightedVoteScore.Valid {
-		t.Fatal("0.6 map to a valid numeric")
+	var meta map[string]any
+	if err := json.Unmarshal(p.SourceMeta, &meta); err != nil {
+		t.Fatalf("source_meta should be valid json: %v", err)
+	}
+	if meta["voted_up"] != true {
+		t.Fatalf("voted_up: want true, got %v", meta["voted_up"])
+	}
+	if meta["hours_played"].(float64) != 2 {
+		t.Fatalf("hours: want 2 (truncated from 150 minutes), got %v", meta["hours_played"])
+	}
+	if meta["weighted_vote_score"] != "0.6" {
+		t.Fatalf("weighted_vote_score: want \"0.6\", got %v", meta["weighted_vote_score"])
 	}
 
 	empty := TextReviewParams(1, steam.Review{Author: steam.Author{PlaytimeForever: 59}})
 
-	if empty.WeightedVoteScore.Valid {
-		t.Fatal("empty score should store as NULL")
+	var emptyMeta map[string]any
+	if err := json.Unmarshal(empty.SourceMeta, &emptyMeta); err != nil {
+		t.Fatalf("source_meta should be valid json: %v", err)
 	}
-
-	if empty.HoursPlayed != 0 {
-		t.Fatalf("59 minutes should truncate to 0 hours, got %d", empty.HoursPlayed)
+	if emptyMeta["hours_played"].(float64) != 0 {
+		t.Fatalf("59 minutes should truncate to 0 hours, got %v", emptyMeta["hours_played"])
+	}
+	if emptyMeta["weighted_vote_score"] != "" {
+		t.Fatalf("empty score should store as empty string, got %v", emptyMeta["weighted_vote_score"])
 	}
 }

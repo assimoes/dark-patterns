@@ -44,7 +44,7 @@ func (t Taxonomy) ID(code string) (int32, bool) {
 }
 
 // LoadTaxonomy reads one taxonomy version from the db and builds the lookup map, prompt block,
-// and the high-level/pattern views. Errors if the version has no patterns.
+// and the high-level/pattern views. errors if the version has no patterns.
 func LoadTaxonomy(ctx context.Context, q *db.Queries, version int32) (Taxonomy, error) {
 	rows, err := q.ListMesoPatternsByVersion(ctx, version)
 	if err != nil {

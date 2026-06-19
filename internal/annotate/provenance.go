@@ -14,7 +14,7 @@ import (
 )
 
 // SnapshotPanel freezes who voted on a run into run_annotators: the pinned annotator_ids, or every
-// active llm when none pinned. Skips anything not in the registry. Then stamps the config digest so
+// active llm when none pinned. skips anything not in the registry. then stamps the config digest so
 // the run records exactly what prompt, taxonomy, sampling, and models produced it.
 func SnapshotPanel(ctx context.Context, q *db.Queries, run db.Run,
 	prompt db.Prompt, tax Taxonomy, registry map[string]Annotator) error {

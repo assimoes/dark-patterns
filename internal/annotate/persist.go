@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Persist writes one annotation and its pattern rows in a single transaction. Idempotent.
+// Persist writes one annotation and its pattern rows in a single transaction. idempotent.
 func Persist(
 	ctx context.Context,
 	pool *pgxpool.Pool,
@@ -40,7 +40,6 @@ func Persist(
 		ResponseMeta: meta.JSON(),
 	})
 
-	// no row means a prior attempt already completed
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -55,14 +54,12 @@ func Persist(
 
 	if status == "completed" {
 		for _, d := range result.Patterns {
-			// closed-world: an entry with present=false is an explicit absence, store nothing.
 			if d.Present != nil && !*d.Present {
 				continue
 			}
 
 			patternID, ok := tax.ID(d.Code)
 			if !ok {
-				// the prompt forbids codes outside the taxonomy
 				continue
 			}
 
@@ -86,6 +83,6 @@ func toJSONB(raw json.RawMessage) json.RawMessage {
 	if len(raw) > 0 && json.Valid(raw) {
 		return raw
 	}
-	b, _ := json.Marshal(string(raw)) // always valid JSON
+	b, _ := json.Marshal(string(raw))
 	return b
 }

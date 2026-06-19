@@ -2,6 +2,7 @@
 package ingest
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/assimoes/dsr/internal/db"
@@ -21,20 +22,19 @@ func ArtifactParams(gameID int32, r steam.Review, scrapedAt time.Time) db.Upsert
 	}
 }
 
-// TextReviewParams builds the text detail row tied to an artifact. playtime comes in minutes so
-// divide by 60 for hours, and a bad weighted score just falls back to empty numeric.
+// TextReviewParams builds the text detail row for a review. body and lang are columns; the steam fields
+// (voted_up, hours, score) live in source_meta. playtime comes in minutes, divide by 60 for hours.
 func TextReviewParams(artifactID int64, r steam.Review) db.UpsertTextReviewDetailParams {
-	weightedScore, err := toNumeric(string(r.WeightedVotedScore))
-	if err != nil {
-		weightedScore = pgtype.Numeric{}
-	}
+	meta, _ := json.Marshal(map[string]any{
+		"voted_up":            r.VotedUp,
+		"hours_played":        int32(r.Author.PlaytimeForever / 60),
+		"weighted_vote_score": string(r.WeightedVotedScore),
+	})
 
 	return db.UpsertTextReviewDetailParams{
-		ArtifactID:        artifactID,
-		Body:              r.Review,
-		VotedUp:           r.VotedUp,
-		HoursPlayed:       int32(r.Author.PlaytimeForever / 60),
-		Lang:              r.Language,
-		WeightedVoteScore: weightedScore,
+		ArtifactID: artifactID,
+		Body:       r.Review,
+		Lang:       r.Language,
+		SourceMeta: meta,
 	}
 }

@@ -15,7 +15,7 @@ const deleteAnnotationPatterns = `-- name: DeleteAnnotationPatterns :exec
 DELETE FROM annotation_patterns WHERE annotation_id = $1
 `
 
-// Clear prior pattern rows before re-writing, so a retry doesn't leave stale ones.
+// clear prior pattern rows before re-writing, so a retry doesnt leave stale ones.
 func (q *Queries) DeleteAnnotationPatterns(ctx context.Context, annotationID int64) error {
 	_, err := q.db.Exec(ctx, deleteAnnotationPatterns, annotationID)
 	return err
@@ -61,7 +61,7 @@ type ListHighLevelsForMesoVersionRow struct {
 	Definition string `json:"definition"`
 }
 
-// The strategic-intent parents used by a pinned meso version
+// the strategic-intent parents used by a pinned meso version
 func (q *Queries) ListHighLevelsForMesoVersion(ctx context.Context, version int32) ([]ListHighLevelsForMesoVersionRow, error) {
 	rows, err := q.db.Query(ctx, listHighLevelsForMesoVersion, version)
 	if err != nil {
@@ -118,7 +118,7 @@ type ListMesoPatternsByVersionRow struct {
 	SourceMapping    []string `json:"source_mapping"`
 }
 
-// The taxonomy as of a pinned version
+// the taxonomy as of a pinned version
 func (q *Queries) ListMesoPatternsByVersion(ctx context.Context, version int32) ([]ListMesoPatternsByVersionRow, error) {
 	rows, err := q.db.Query(ctx, listMesoPatternsByVersion, version)
 	if err != nil {

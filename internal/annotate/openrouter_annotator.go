@@ -17,7 +17,7 @@ const (
 	maxBackoff    = 30 * time.Second
 )
 
-// OpenRouterAnnotator talks to the OpenRouter chat API. One per model slug. Retries on 429/5xx.
+// OpenRouterAnnotator talks to the OpenRouter chat API. one per model slug. retries on 429/5xx.
 type OpenRouterAnnotator struct {
 	httpClient    *http.Client
 	apiKey        string
@@ -33,7 +33,7 @@ type OpenRouterAnnotator struct {
 // ORAOption tweaks an OpenRouterAnnotator at construction.
 type ORAOption func(*OpenRouterAnnotator)
 
-// WithHTTPClient swaps the http client, handy for tests.
+// WithHTTPClient swaps the HTTP client, handy for tests.
 func WithHTTPClient(h *http.Client) ORAOption {
 	return func(a *OpenRouterAnnotator) {
 		a.httpClient = h
@@ -98,7 +98,7 @@ func (a *OpenRouterAnnotator) Identity() RunIdentity {
 }
 
 // Annotate sends the system and user messages at temperature 0, strips any json fence off the
-// reply, and returns the raw body. Retries live in call.
+// reply, and returns the raw body. retries live in call.
 func (a *OpenRouterAnnotator) Annotate(ctx context.Context, in Input) (Output, error) {
 
 	var userContent any = in.User
@@ -126,7 +126,6 @@ func (a *OpenRouterAnnotator) Annotate(ctx context.Context, in Input) (Output, e
 
 	res, meta, err := a.call(ctx, payload)
 	if err != nil {
-		// already retried inside call
 		return Output{}, err
 	}
 
@@ -196,7 +195,6 @@ func (a *OpenRouterAnnotator) try(ctx context.Context, payload []byte) (oraRespo
 	start := time.Now()
 	res, err := a.httpClient.Do(req)
 	if err != nil {
-		// transport error, retryable
 		return oraResponse{}, ResponseMeta{}, true, err
 	}
 	defer res.Body.Close()
@@ -228,7 +226,6 @@ func (a *OpenRouterAnnotator) try(ctx context.Context, payload []byte) (oraRespo
 }
 
 func (a *OpenRouterAnnotator) backoff(attempt int) time.Duration {
-	// 1s, 2s, 4s...30s
 	base := min(a.backoffBase<<attempt, maxBackoff)
 
 	half := base / 2
@@ -237,7 +234,6 @@ func (a *OpenRouterAnnotator) backoff(attempt int) time.Duration {
 		return base
 	}
 
-	// jitter
 	return half + time.Duration(rand.Int64N(int64(half)))
 }
 
@@ -254,14 +250,12 @@ func snippet(b []byte) string {
 func stripJSONFence(s string) string {
 	s = strings.TrimSpace(s)
 
-	// no fence, return as-is
 	if !strings.HasPrefix(s, "```") {
 		return s
 	}
 
 	s = strings.TrimPrefix(s, "```")
 
-	// drop the ```json (or bare ```) info line
 	if nl := strings.IndexByte(s, '\n'); nl >= 0 {
 		s = s[nl+1:]
 	}

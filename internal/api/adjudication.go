@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// strataKey is one (game, stratum) cell; each cell is sampled independently.
+// strataKey is one (game, stratum) cell, each cell is sampled independently.
 type strataKey struct {
 	gameID  int32
 	stratum string
@@ -58,7 +58,6 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// group into (game x stratum) cells
 	groups := make(map[strataKey][]db.ClassifyReviewsForSamplingRow)
 	for _, row := range rows {
 		k := strataKey{gameID: row.ExternalGameID, stratum: row.Stratum}
@@ -71,7 +70,6 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 		"silent":           req.Silent,
 	}
 
-	// store the seed (supplied or generated) so the draw stays reproducible after the fact
 	seed := time.Now().UnixNano()
 	if req.Seed != nil {
 		seed = *req.Seed
@@ -88,7 +86,6 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// draw before opening the tx; stable key order keeps the draw deterministic per seed
 	keys := make([]strataKey, 0, len(groups))
 	for k := range groups {
 		keys = append(keys, k)
@@ -118,7 +115,6 @@ func (s *Server) createAdjudicationSample(w http.ResponseWriter, r *http.Request
 			continue
 		}
 
-		// shuffle a copy with the seeded RNG, take first n
 		shuffled := make([]db.ClassifyReviewsForSamplingRow, len(cell))
 		copy(shuffled, cell)
 		rng.Shuffle(len(shuffled), func(i, j int) {
@@ -316,7 +312,6 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 		detections = append(detections, dto.NewDetection(codeByID[d.PatternID], d))
 	}
 
-	// panel model list lets the frontend infer Absent (model with no detection row on a pattern)
 	annotators, err := s.q.ListRunAnnotators(ctx, panelRun)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "load panel models", err)
@@ -327,8 +322,6 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 		panelModels = append(panelModels, a.ModelSlug)
 	}
 
-	// existing gold labels to revisit, keyed by pattern code for the frontend. the open pass, so this
-	// screen never shows or touches what the blind pass recorded.
 	goldRun, err := s.q.GetGoldRunForPopulation(ctx, run.PopulationID)
 	goldLabels := map[string]bool{}
 	if err == nil {
@@ -383,8 +376,6 @@ func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// the panel run only resolves the population and taxonomy version so we can map pattern codes and
-	// find the gold run. none of it reaches the response, so the blind boundary holds.
 	panelRun, err := s.resolvePanelRun(ctx, r, individualID)
 	if err != nil {
 		s.writeError(w, http.StatusNotFound, "no panel run for this review", err)
@@ -412,8 +403,6 @@ func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 		codeByID[c.ID] = c.Code
 	}
 
-	// the auditors own blind labels, keyed by pattern code, so the cards refill on revisit. pass='blind'
-	// keeps the open-pass decisions out of sight, which is the whole point of the blind run.
 	goldRun, err := s.q.GetGoldRunForPopulation(ctx, run.PopulationID)
 	goldLabels := map[string]bool{}
 	if err == nil {
@@ -478,7 +467,6 @@ func (s *Server) reviewDecisions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// which pass this save belongs to. the blind screen sends pass=blind, everything else is the open pass.
 	pass := passFromQuery(r)
 
 	var req dto.DecisionsRequest
@@ -487,9 +475,6 @@ func (s *Server) reviewDecisions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// derive gold run and taxonomy version from the ?run= the screen sends, not "newest panel run":
-	// a population can hold panel runs of different tax versions, and the read maps labels by this
-	// runs pattern-version ids, so a mismatch here hides the saved labels on revisit
 	panelRun, err := s.resolvePanelRun(ctx, r, individualID)
 	if err != nil {
 		s.writeError(w, http.StatusNotFound, "no panel run for this review", err)

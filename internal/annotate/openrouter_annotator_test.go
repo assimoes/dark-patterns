@@ -21,8 +21,7 @@ func TestOpenRouterAnnotateStripsFenceAndFillsMeta(t *testing.T) {
 	const content = "```json\n{\"patterns\":[{\"code\":\"PM-1\",\"evidence\":\"pay to win\",\"explanation\":\"buys power\"}]}\n```"
 
 	res := oraResponse{
-		ID: "gen-abc123",
-		// served variant != requested slug
+		ID:    "gen-abc123",
 		Model: "openai/gpt-4o-mini-2026-06-01",
 		Choices: []oraChoice{{
 			Message:      oraMessage{Role: "assistant", Content: content},

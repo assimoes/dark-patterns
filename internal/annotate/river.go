@@ -25,7 +25,7 @@ type AnnotateArgs struct {
 	Modality     string `json:"modality"`
 }
 
-// Kind is the river job kind.
+// Kind is the River job kind.
 func (AnnotateArgs) Kind() string {
 	return "annotate"
 }
@@ -50,7 +50,7 @@ type AnnotateWorker struct {
 	runCtx   sync.Map
 }
 
-// NewAnnotateWorker wires up the worker, indexing the loaders by modality. Nil logger falls back to default.
+// NewAnnotateWorker wires up the worker, indexing the loaders by modality. nil logger falls back to default.
 func NewAnnotateWorker(
 	pool *pgxpool.Pool, loaders []Loader, registry map[string]Annotator, logger *slog.Logger) *AnnotateWorker {
 
@@ -147,7 +147,6 @@ func (w *AnnotateWorker) Work(ctx context.Context, job *river.Job[AnnotateArgs])
 
 	annotator, ok := w.registry[a.ModelSlug]
 	if !ok {
-		// error so the job stays visible/retryable instead of silently dropping work
 		return fmt.Errorf("no annotator registred for model slug %q", a.ModelSlug)
 	}
 
@@ -165,7 +164,7 @@ func (w *AnnotateWorker) Work(ctx context.Context, job *river.Job[AnnotateArgs])
 }
 
 // Enqueue freezes the panel for a run, then inserts one job per annotator per still-unannotated
-// individual. Returns how many jobs went in. Safe to re-run, the unique opts skip dupes.
+// individual. returns how many jobs went in. safe to re-run, the unique opts skip dupes.
 func Enqueue(ctx context.Context, client *river.Client[pgx.Tx],
 	pool *pgxpool.Pool, runID int32, registry map[string]Annotator) (int, error) {
 
@@ -190,8 +189,6 @@ func Enqueue(ctx context.Context, client *river.Client[pgx.Tx],
 		return 0, err
 	}
 
-	// freeze the panel: pinned annotator_ids, or all llm when none pinned.
-	// After this the panel comes from run_annotators and is never re-derived.
 	if err := SnapshotPanel(ctx, q, run, prompt, tax, registry); err != nil {
 		return 0, err
 	}

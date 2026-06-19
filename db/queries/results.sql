@@ -1,6 +1,6 @@
 -- name: UpsertAnnotation :one
--- Idempotent. The WHERE guard means an already completed annotation is not touched
--- Returning yields no rows in this case, and the worker treats it as already done
+-- idempotent. the WHERE guard means an already completed annotation is not touched
+-- returning yields no rows in this case, and the worker treats it as already done
 INSERT INTO annotations (run_id, individual_id, annotator_id, status, raw_response, response_meta)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (run_id, individual_id, annotator_id) DO UPDATE
@@ -11,7 +11,7 @@ ON CONFLICT (run_id, individual_id, annotator_id) DO UPDATE
 RETURNING id;
 
 -- name: ListUnannotatedTextReviews :many
--- The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
+-- the annotation workers queue: items in the runs population not yet successfully annotated by an annotator
 SELECT
     i.id as population_item_id,
     a.id as artifact_id,

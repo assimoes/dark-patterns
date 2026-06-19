@@ -17,8 +17,6 @@ func seedPanelRun(t *testing.T, pool *pgxpool.Pool, annotatorIDs []int32) (db.Ru
 	ctx := context.Background()
 	q := db.New(pool)
 
-	// shared db: clear this test's footprint before seeding so a crashed prior run cannot leak the fixed
-	// prompt name into our unique (name, version). the t.Cleanup below clears this run again after.
 	cleanPanelTestData(ctx, pool, t.Name())
 	t.Cleanup(func() { cleanPanelTestData(context.Background(), pool, t.Name()) })
 
@@ -118,7 +116,7 @@ func TestPanelNullFreezesAll(t *testing.T) {
 		t.Skip("no llm annotators seeded")
 	}
 
-	run, prompt := seedPanelRun(t, pool, nil) // annotator_ids = NULL
+	run, prompt := seedPanelRun(t, pool, nil)
 	tax, err := LoadTaxonomy(ctx, q, 1)
 	if err != nil {
 		t.Fatalf("load taxonomy: %v", err)

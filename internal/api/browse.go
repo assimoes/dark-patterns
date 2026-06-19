@@ -119,15 +119,7 @@ func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
 		panel = append(panel, dto.Member{Kind: m.Kind, Label: m.Label})
 	}
 
-	// no sample is the expected no-rows case, not a failure; swallow ErrNoRows into false
 	hasSample := false
-	// if _, err := s.q.GetLatestSampleForRun(ctx, runID); err != nil {
-	// 	if !errors.Is(err, pgx.ErrNoRows) {
-	// 		s.writeError(w, http.StatusInternalServerError, "load sample", err)
-	// 		return
-	// 	}
-	// 	hasSample = false
-	// }
 
 	s.writeJSON(w, http.StatusOK, dto.NewRunDetail(run, pop.Modality, panel, hasSample))
 }

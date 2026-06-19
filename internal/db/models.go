@@ -192,10 +192,8 @@ type TaxonomyMesoLevel struct {
 }
 
 type TextReviewDetail struct {
-	ArtifactID        int64          `json:"artifact_id"`
-	Body              string         `json:"body"`
-	VotedUp           bool           `json:"voted_up"`
-	HoursPlayed       int32          `json:"hours_played"`
-	Lang              string         `json:"lang"`
-	WeightedVoteScore pgtype.Numeric `json:"weighted_vote_score"`
+	ArtifactID int64  `json:"artifact_id"`
+	Body       string `json:"body"`
+	Lang       string `json:"lang"`
+	SourceMeta []byte `json:"source_meta"`
 }

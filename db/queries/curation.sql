@@ -12,14 +12,14 @@ VALUES ($1, $2, $3, $4)
 RETURNING id;
 
 -- name: SelectTextReviewsFromPopulation :many
--- Representative selection with common filters and the cutoff
--- Criteria need dynamic SQL
+-- representative selection with common filters and the cutoff
+-- criteria need dynamic SQL
 SELECT
 FROM artifacts a
 JOIN text_review_details td ON td.artifact_id = a.id
 WHERE a.modality = 'text'
     AND a.scraped_at <= $1
-    AND td.hours_played >= $2;
+    AND (td.source_meta->>'hours_played')::int >= $2;
 
 -- name: FreezeStratifiedPopulation :execrows
 INSERT INTO individuals (population_id, artifact_id)
@@ -34,9 +34,7 @@ FROM (
     JOIN text_review_details td ON td.artifact_id = a.id
     WHERE a.modality = 'text'
         AND a.scraped_at <= @artifacts_cutoff
-        AND td.hours_played >= @min_hours_played::int
-        -- an empty or null game list means all games, otherwise keep only the picked ones. coalesce so
-        -- a null array reads as 0, same as empty, instead of dropping every row.
+        AND (@min_hours_played::int <= 0 OR (td.source_meta->>'hours_played')::int >= @min_hours_played::int)
         AND (coalesce(cardinality(@game_ids::int[]), 0) = 0 OR a.external_game_id = ANY(@game_ids::int[]))
 ) ranked
 WHERE ranked.rn <= @per_game_cap::int
@@ -61,7 +59,7 @@ ON CONFLICT (population_id, artifact_id) DO NOTHING;
 
 -- name: FreezeMultimodalPopulation :execrows
 -- a multimodal artifact has both channels, so this joins both detail tables: only artifacts with a body
--- AND an image are frozen in. same cap and cutoff as the image freeze, no hours filter.
+-- and an image are frozen.
 INSERT INTO individuals (population_id, artifact_id)
 SELECT @population_id::int, ranked.artifact_id
 FROM (

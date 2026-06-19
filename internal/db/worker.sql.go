@@ -67,7 +67,7 @@ func (q *Queries) GetMultimodalForIndividual(ctx context.Context, id int64) (Get
 }
 
 const getTextReviewForIndividual = `-- name: GetTextReviewForIndividual :one
-SELECT a.id AS artifact_id, td.body, td.voted_up, td.lang
+SELECT a.id AS artifact_id, td.body, td.lang
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN text_review_details td on td.artifact_id = a.id
@@ -77,20 +77,14 @@ WHERE i.id = $1
 type GetTextReviewForIndividualRow struct {
 	ArtifactID int64  `json:"artifact_id"`
 	Body       string `json:"body"`
-	VotedUp    bool   `json:"voted_up"`
 	Lang       string `json:"lang"`
 }
 
-// text-specific query
+// text-specific query. body and lang only
 func (q *Queries) GetTextReviewForIndividual(ctx context.Context, id int64) (GetTextReviewForIndividualRow, error) {
 	row := q.db.QueryRow(ctx, getTextReviewForIndividual, id)
 	var i GetTextReviewForIndividualRow
-	err := row.Scan(
-		&i.ArtifactID,
-		&i.Body,
-		&i.VotedUp,
-		&i.Lang,
-	)
+	err := row.Scan(&i.ArtifactID, &i.Body, &i.Lang)
 	return i, err
 }
 
@@ -115,8 +109,8 @@ type ListUnnanotatedIndividualsParams struct {
 	AnnotatorID int32 `json:"annotator_id"`
 }
 
-// The work queue for one panel member.
-// Modality agnostic
+// the work queue for one panel member.
+// modality agnostic
 func (q *Queries) ListUnnanotatedIndividuals(ctx context.Context, arg ListUnnanotatedIndividualsParams) ([]int64, error) {
 	rows, err := q.db.Query(ctx, listUnnanotatedIndividuals, arg.RunID, arg.AnnotatorID)
 	if err != nil {

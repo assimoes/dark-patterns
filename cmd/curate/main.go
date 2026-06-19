@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// criteria is the population recipe, stored as json on the row so we can see how it was built. game_ids
+// criteria is the population recipe, stored as JSON on the row so we can see how it was built. game_ids
 // is empty when every game is in scope, and lists the picked external ids otherwise.
 type criteria struct {
 	Modality        string    `json:"modality"`

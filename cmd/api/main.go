@@ -1,4 +1,4 @@
-// Command api is the http server backing the adjudication frontend, with graceful shutdown.
+// Command api is the HTTP server backing the adjudication frontend, with graceful shutdown.
 package main
 
 import (
@@ -37,7 +37,6 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Decisions are attributed to a kind=human annotator, same as the adjudication cli.
 	adjLabel := getenv("ADJUDICATOR_LABEL", "author")
 
 	auditor, err := db.New(pool).GetAnnotatorByLabel(ctx, adjLabel)
@@ -67,7 +66,6 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// listen in the background so main can block on the shutdown signal.
 	go func() {
 		logger.Info("api listening", "addr", addr, "origin", origin)
 
@@ -92,7 +90,7 @@ func main() {
 	logger.Info("stopped")
 }
 
-// getenv reads an env var, falling back to def when it is unset or empty.
+// getenv reads an env var, falling back to def when its unset or empty.
 func getenv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

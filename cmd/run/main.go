@@ -63,8 +63,6 @@ func main() {
 
 	q := db.New(pool)
 
-	// validate before inserting
-
 	if err := run.Validate(ctx, q, annotatorIDs, int32(*populationID), int32(*promptID), int32(*taxVersion)); err != nil {
 		logger.Error("validation failed", "err", err)
 		os.Exit(1)

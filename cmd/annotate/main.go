@@ -1,4 +1,4 @@
-// Command annotate enqueues annotation jobs for a run or serves the worker that runs the llm
+// Command annotate enqueues annotation jobs for a run or serves the worker that runs the LLM
 // panel over reviews. enqueue queues the work, serve drains the annotate queue.
 package main
 
@@ -21,7 +21,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
-// panelRegistry builds the slug->Annotator map from all active llm annotators; per-run subset is
+// panelRegistry builds the slug->Annotator map from all active LLM annotators; per-run subset is
 // enforced later by SnapshotPanel, so this is always the full panel.
 func panelRegistry(ctx context.Context, pool *pgxpool.Pool, dry bool) (map[string]annotate.Annotator, error) {
 	anns, err := db.New(pool).ListLLMAnnotators(ctx)
@@ -33,7 +33,7 @@ func panelRegistry(ctx context.Context, pool *pgxpool.Pool, dry bool) (map[strin
 }
 
 // buildRegistry turns the annotator rows into a slug->Annotator map. dry swaps in one fake
-// offline annotator so you can exercise the pipeline without openrouter or a key.
+// offline annotator so you can exercise the pipeline without OpenRouter or a key.
 func buildRegistry(annotators []db.ListLLMAnnotatorsRow, dry bool) (map[string]annotate.Annotator, error) {
 	if dry {
 		return map[string]annotate.Annotator{
