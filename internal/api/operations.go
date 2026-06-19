@@ -175,9 +175,6 @@ func (s *Server) createPopulation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	minHours := req.MinHoursPlayed
-	if minHours == 0 {
-		minHours = 1
-	}
 	perGame := req.PerGameCap
 	if perGame == 0 {
 		perGame = 50

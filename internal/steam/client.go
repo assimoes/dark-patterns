@@ -180,7 +180,6 @@ func (c *Client) FetchPage(ctx context.Context,
 			return nil
 		}
 
-		// steam can repeat the cursor; bail to avoid looping forever.
 		if next == "" || next == cursor || seen[next] {
 			return nil
 		}

@@ -1,5 +1,5 @@
 -- name: ListMesoPatternsByVersion :many
--- The taxonomy as of a pinned version
+-- the taxonomy as of a pinned version
 SELECT
 m.id,
 m.code,
@@ -17,7 +17,7 @@ WHERE m.version = sqlc.arg(version)
 ORDER BY h.id, m.code;
 
 -- name: ListHighLevelsForMesoVersion :many
--- The strategic-intent parents used by a pinned meso version
+-- the strategic-intent parents used by a pinned meso version
 SELECT DISTINCT h.id, h.code, h.name, coalesce(h.definition, h.description) AS definition
 FROM taxonomy_high_levels h
 JOIN taxonomy_meso_levels m ON m.parent_id = h.id
@@ -25,7 +25,7 @@ WHERE m.version = sqlc.arg(version)
 ORDER BY h.id;
 
 -- name: DeleteAnnotationPatterns :exec
--- Clear prior pattern rows before re-writing, so a retry doesn't leave stale ones.
+-- clear prior pattern rows before re-writing, so a retry doesnt leave stale ones.
 DELETE FROM annotation_patterns WHERE annotation_id = $1;
 
 -- name: InsertAnnotationPattern :exec

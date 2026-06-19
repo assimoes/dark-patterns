@@ -1,12 +1,12 @@
 -- name: ListGameDisplays :many
--- The curated games with their presentation metadata. external_game_id is the stable id
+-- the curated games with their presentation metadata. external_game_id is the stable id
 -- the frontend uses as `gameId`; the rest are display-only fields the pipeline never needed.
 SELECT external_game_id, name, short, monetization, display_color
 FROM game_display
 ORDER BY external_game_id;
  
 -- name: CountIndividualsPerGame :many
--- Curated individuals (reviews in a population) per game, across every population.
+-- curated individuals (reviews in a population) per game, across every population.
 SELECT a.external_game_id, count(*)::int AS individuals
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
@@ -14,7 +14,7 @@ GROUP BY a.external_game_id
 ORDER BY a.external_game_id;
  
 -- name: ListRunsForDashboard :many
--- One row per run with its population's modality as a human label and its creation time.
+-- one row per run with its populations modality as a human label and its creation time.
 -- annotator_ids is the panel the run pinned; members are resolved separately per run.
 SELECT
     r.id,
@@ -27,7 +27,7 @@ JOIN populations p ON p.id = r.population_id
 ORDER BY r.created_at DESC;
  
 -- name: ListMembersForRun :many
--- The panel members of a run: every annotator referenced by runs.annotator_ids, with the kind
+-- the panel members of a run: every annotator referenced by runs.annotator_ids, with the kind
 -- (llm | human) and a display label. LLM members carry their model name, humans their own label.
 SELECT
     an.id,
@@ -57,13 +57,13 @@ ORDER BY a.external_game_id, r.id;
 
  
 -- name: GetPatternIDByCode :one
--- Resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id, within a taxonomy
--- version. Code is unique only per (code, version), so the version is required or the wrong version's
--- id comes back — which would make a saved adjudication unreadable against the run's actual taxonomy.
+-- resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id, within a taxonomy
+-- version. code is unique only per (code, version), so the version is required or the wrong versions
+-- id comes back — which would make a saved adjudication unreadable against the runs actual taxonomy.
 SELECT id FROM taxonomy_meso_levels WHERE code = sqlc.arg(code) AND version = sqlc.arg(version);
  
 -- name: GetPanelRunForReview :one
--- The llm panel run whose votes seed a decision on this review. One panel per population; pick the
+-- the llm panel run whose votes seed a decision on this review. one panel per population; pick the
 -- most recent so the frozen seed reflects the panel the auditor is actually looking at.
 SELECT r.id
 FROM runs r
@@ -74,9 +74,9 @@ ORDER BY r.created_at DESC
 LIMIT 1;
 
 -- name: ListPopulationsForGame :many
--- The populations that contain this game's reviews, each with the game's slice: how many of the
--- game's individuals fall in the population, and how many of those have a completed annotation. A
--- population is multi-game (stratified, per-game capped), so this is THIS game's part of it. Counts
+-- the populations that contain this games reviews, each with the games slice: how many of the
+-- games individuals fall in the population, and how many of those have a completed annotation. a
+-- population is multi-game (stratified, per-game capped), so this is THIS games part of it. counts
 -- are per population, never summed across them.
 SELECT
     p.id AS population_id,
@@ -97,10 +97,10 @@ GROUP BY p.id, p.description, p.created_at
 ORDER BY p.id;
  
 -- name: ModelStatsForGamePopulation :many
--- Per LLM model, the number of DISTINCT reviews of one game annotated within one population. Counting
+-- per LLM model, the number of DISTINCT reviews of one game annotated within one population. counting
 -- distinct individuals (not annotation rows) and scoping to a single population makes the models
 -- comparable: inside one population they all share the same work set, so a complete run shows every
--- model at the population's slice size, not a runaway sum across runs.
+-- model at the populations slice size, not a runaway sum across runs.
 SELECT
     m.name AS model,
     count(DISTINCT i.id)::int AS annotated
@@ -117,8 +117,8 @@ GROUP BY m.name
 ORDER BY annotated DESC, m.name;
  
 -- name: PanelForPopulation :many
--- The panel that worked a population: every annotator frozen onto any of the population's runs, with
--- its kind (llm | human) and a display label (the model name for an llm, the annotator's own label
+-- the panel that worked a population: every annotator frozen onto any of the populations runs, with
+-- its kind (llm | human) and a display label (the model name for an llm, the annotators own label
 -- for a human). run_annotators is the single source of "who annotates this run".
 SELECT DISTINCT
     an.kind,
@@ -131,7 +131,7 @@ WHERE r.population_id = sqlc.arg(population_id)
 ORDER BY an.kind, label;
 
 -- name: InsertGameDisplay :one
--- Register a game so it appears on the dashboard list and can be scraped.
+-- register a game so it appears on the dashboard list and can be scraped.
 INSERT INTO game_display (external_game_id, name, short, monetization, display_color)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (external_game_id) DO UPDATE
@@ -142,8 +142,8 @@ ON CONFLICT (external_game_id) DO UPDATE
 RETURNING external_game_id, name, short, monetization, display_color;
 
 -- name: ListPopulations :many
--- Every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
--- still appears with a zero count. Newest first, the order an operator picking a population wants.
+-- every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
+-- still appears with a zero count. newest first, the order an operator picking a population wants.
 SELECT
     p.id,
     p.modality,
@@ -156,12 +156,12 @@ GROUP BY p.id
 ORDER BY p.id DESC;
  
 -- name: GetPopulation :one
--- One population row by id, for the population/run detail headers (modality, description, created_at).
+-- one population row by id, for the population/run detail headers (modality, description, created_at).
 SELECT id, modality, description, created_at FROM populations WHERE id = sqlc.arg(id);
  
 -- name: PopulationPerGame :many
--- For one population, its per-game slice: how many of the population's reviews belong to each game and
--- how many of those have a completed annotation. Mirrors ListPopulationsForGame but pivots to group by
+-- for one population, its per-game slice: how many of the populations reviews belong to each game and
+-- how many of those have a completed annotation. mirrors ListPopulationsForGame but pivots to group by
 -- game within a single population instead of by population within a single game.
 SELECT
     a.external_game_id,
@@ -179,11 +179,11 @@ GROUP BY a.external_game_id
 ORDER BY a.external_game_id;
  
 -- name: ListPrompts :many
--- Every prompt as a form option: its id, name, version and modality. Ordered by id for a stable list.
+-- every prompt as a form option: its id, name, version and modality. ordered by id for a stable list.
 SELECT id, name, version, modality FROM prompts ORDER BY id;
  
 -- name: ListRuns :many
--- Every run with what an operator needs to recognise and pick it: its type, the population modality as a
+-- every run with what an operator needs to recognise and pick it: its type, the population modality as a
 -- label, the foreign keys, the taxonomy version, when it ran, and the size of the panel it pinned.
 SELECT
     r.id,
@@ -199,7 +199,7 @@ JOIN populations p ON p.id = r.population_id
 ORDER BY r.created_at DESC;
  
 -- name: ListAnnotatorsWithModel :many
--- Every annotator as a form option, carrying the display model name for llm annotators (NULL for
+-- every annotator as a form option, carrying the display model name for llm annotators (NULL for
 -- humans). ListAnnotators returns the raw rows with only a model_id; this resolves the name in SQL so
 -- the API never has to look models up one by one.
 SELECT
@@ -243,7 +243,7 @@ GROUP BY m.name
 ORDER BY annotated DESC, m.name;
 
 -- name: GetGoldRunForPopulation :one
--- The most recent gold run for a population. Adjudication samples and decisions write into one gold
+-- the most recent gold run for a population. adjudication samples and decisions write into one gold
 -- run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
 SELECT id
 FROM runs
@@ -253,8 +253,8 @@ ORDER BY created_at DESC
 LIMIT 1;
 
 -- name: ClassifyReviewsForSampling :many
--- The candidate pool for a sample: every completed review in the population, tagged with its stratum.
--- A review is classified by the panel's per-pattern votes: flagged_majority if any pattern reached a
+-- the candidate pool for a sample: every completed review in the population, tagged with its stratum.
+-- a review is classified by the panels per-pattern votes: flagged_majority if any pattern reached a
 -- majority Present (n_present*2 > n_total), else flagged_split if any pattern had Present votes without
 -- a majority (the panel disagreed), else silent (no pattern got a single Present vote).
 WITH completed AS (
@@ -288,18 +288,18 @@ ORDER BY a.external_game_id, i.id;
  
 
 -- name: InsertAdjudicationSample :one
--- The sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
+-- the sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
 INSERT INTO adjudication_samples (panel_run_id, gold_run_id, strategy, seed, params)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id;
  
 -- name: InsertAdjudicationSampleItem :exec
--- One frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
+-- one frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
 INSERT INTO adjudication_sample_items (sample_id, individual_id, external_game_id, stratum, selection_prob)
 VALUES ($1, $2, $3, $4, $5);
  
 -- name: GetLatestSampleForRun :one
--- The most recent sample drawn for a panel run, to reopen its queue.
+-- the most recent sample drawn for a panel run, to reopen its queue.
 SELECT id, panel_run_id, gold_run_id, strategy, seed, params, created_at
 FROM adjudication_samples
 WHERE panel_run_id = sqlc.arg(panel_run_id)
@@ -307,16 +307,13 @@ ORDER BY created_at DESC
 LIMIT 1;
  
 -- name: ListSampleReviews :many
--- The queue for a sample: each selected review with the text/vote/language to render and a `decided`
--- count of how many of its patterns already have a gold label in the sample's gold run, for the pass
--- the screen is on. the open and blind worklists pass their own pass so each shows its own progress.
--- Joining the per-review adjudication count in SQL keeps the worklist's progress one query, not N.
+-- the queue for a sample
 SELECT
     it.individual_id,
     it.external_game_id,
     it.stratum,
     a.modality,
-    COALESCE(td.voted_up, false) AS voted_up,
+    COALESCE((td.source_meta->>'voted_up')::boolean, false)::boolean AS voted_up,
     COALESCE(td.lang, '')::text AS lang,
     (
         SELECT count(*)::int
@@ -334,12 +331,10 @@ WHERE it.sample_id = sqlc.arg(sample_id)
 ORDER BY it.external_game_id, it.individual_id;
 
 -- name: GetReviewMeta :one
--- The review header for the auditor/blind views: what to render plus the game. modality says which
--- branch to render, so the joins are LEFT and the columns coalesced, a text review has no image_uri and
--- an image review has no body.
+-- the review header for the auditor/blind views
 SELECT a.modality,
        COALESCE(td.body, '')::text AS body,
-       COALESCE(td.voted_up, false) AS voted_up,
+       COALESCE((td.source_meta->>'voted_up')::boolean, false)::boolean AS voted_up,
        COALESCE(td.lang, '')::text AS lang,
        COALESCE(img.image_uri, '')::text AS image_uri,
        COALESCE(img.description, '')::text AS description,

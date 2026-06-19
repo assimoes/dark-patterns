@@ -56,7 +56,7 @@ type CountCompletedRatersParams struct {
 	IndividualID int64 `json:"individual_id"`
 }
 
-// How many panel members completed this review (the denominator for every pattern's vote).
+// how many panel members completed this review (the denominator for every patterns vote).
 func (q *Queries) CountCompletedRaters(ctx context.Context, arg CountCompletedRatersParams) (int32, error) {
 	row := q.db.QueryRow(ctx, countCompletedRaters, arg.PanelRunID, arg.IndividualID)
 	var n_total int32
@@ -117,7 +117,7 @@ type GetPanelVoteForCellRow struct {
 	NTotal   int64 `json:"n_total"`
 }
 
-// The panel's verdict for one (run, individual, pattern)
+// the panels verdict for one (run, individual, pattern)
 func (q *Queries) GetPanelVoteForCell(ctx context.Context, arg GetPanelVoteForCellParams) (GetPanelVoteForCellRow, error) {
 	row := q.db.QueryRow(ctx, getPanelVoteForCell, arg.PatternID, arg.PanelRunID, arg.IndividualID)
 	var i GetPanelVoteForCellRow
@@ -133,7 +133,7 @@ JOIN text_review_details td ON td.artifact_id = a.id
 WHERE i.id = $1
 `
 
-// The review body to render for the auditor
+// the review body to render for the auditor
 func (q *Queries) GetReviewText(ctx context.Context, individualID int64) (string, error) {
 	row := q.db.QueryRow(ctx, getReviewText, individualID)
 	var body string
@@ -201,7 +201,7 @@ type ListPanelVotesForCellRow struct {
 	Explanation string `json:"explanation"`
 }
 
-// Per-rater verdicts with each model's own evidence and explanation
+// per-rater verdicts with each models own evidence and explanation
 func (q *Queries) ListPanelVotesForCell(ctx context.Context, arg ListPanelVotesForCellParams) ([]ListPanelVotesForCellRow, error) {
 	rows, err := q.db.Query(ctx, listPanelVotesForCell, arg.PatternID, arg.PanelRunID, arg.IndividualID)
 	if err != nil {
@@ -245,7 +245,7 @@ type ListReviewAdjudicationsRow struct {
 	FinalLabel bool  `json:"final_label"`
 }
 
-// Existing gold labels for one review in one pass, to pre-fill the checkboxes on revisit. the blind
+// existing gold labels for one review in one pass, to pre-fill the checkboxes on revisit. the blind
 // read asks for pass='blind' so it never sees the open-pass labels, and the other way round.
 func (q *Queries) ListReviewAdjudications(ctx context.Context, arg ListReviewAdjudicationsParams) ([]ListReviewAdjudicationsRow, error) {
 	rows, err := q.db.Query(ctx, listReviewAdjudications, arg.RunID, arg.IndividualID, arg.Pass)
@@ -293,7 +293,7 @@ type ListReviewDetectionsRow struct {
 	Explanation string `json:"explanation"`
 }
 
-// Every panel member's detection for one review, across all patterns: who flagged what, with their
+// every panel members detection for one review, across all patterns: who flagged what, with their
 // evidence and explanation. annotation_patterns holds positives only, so a row means that model
 // detected that pattern on this review.
 func (q *Queries) ListReviewDetections(ctx context.Context, arg ListReviewDetectionsParams) ([]ListReviewDetectionsRow, error) {
@@ -337,7 +337,7 @@ type ListTaxonomyRow struct {
 	Family      string `json:"family"`
 }
 
-// The full MESO codebook for a version: code, name, definition, and the family it sits under.
+// the full MESO codebook for a version: code, name, definition, and the family it sits under.
 func (q *Queries) ListTaxonomy(ctx context.Context, version int32) ([]ListTaxonomyRow, error) {
 	rows, err := q.db.Query(ctx, listTaxonomy, version)
 	if err != nil {
@@ -369,14 +369,14 @@ SELECT i.id AS individual_id, a.external_game_id
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 WHERE i.population_id = $1
-  AND NOT EXISTS (                                  -- ignore reviews with any non-completed annotation
+  AND NOT EXISTS (
       SELECT 1 FROM annotations an
       WHERE an.individual_id = i.id
         AND an.run_id = $2
         AND an.status <> 'completed'
   )
   AND (
-      SELECT count(*)::int                          -- this review's rank within its game
+      SELECT count(*)::int
       FROM individuals i2
       JOIN artifacts a2 ON a2.id = i2.artifact_id
       WHERE i2.population_id = i.population_id
@@ -403,9 +403,9 @@ type SampleStratifiedIndividualsRow struct {
 	ExternalGameID int32 `json:"external_game_id"`
 }
 
-// Fixed N individuals per game from the population, ordered deterministically
-// Always yields the same subset.
-// Drops any review where a panel member didn't 'complete' (>=1 parse_error) for the panel run
+// fixed N individuals per game from the population, ordered deterministically
+// always yields the same subset.
+// drops any review where a panel member didnt 'complete' (>=1 parse_error) for the panel run
 func (q *Queries) SampleStratifiedIndividuals(ctx context.Context, arg SampleStratifiedIndividualsParams) ([]SampleStratifiedIndividualsRow, error) {
 	rows, err := q.db.Query(ctx, sampleStratifiedIndividuals, arg.PopulationID, arg.PanelRunID, arg.PerGame)
 	if err != nil {
@@ -449,7 +449,7 @@ type UpsertAdjudicationParams struct {
 	Pass                    string          `json:"pass"`
 }
 
-// Re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
+// re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
 // the panel seed at the new decision time. pass keeps the open and blind labels for a cell apart, so
 // saving one never touches the other.
 func (q *Queries) UpsertAdjudication(ctx context.Context, arg UpsertAdjudicationParams) error {

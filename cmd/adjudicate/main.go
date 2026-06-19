@@ -1,4 +1,4 @@
-// Command adjudicate serves the http api the human uses to confirm or override panel votes into
+// Command adjudicate serves the HTTP api the human uses to confirm or override panel votes into
 // the gold run.
 package main
 

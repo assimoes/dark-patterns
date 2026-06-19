@@ -54,8 +54,8 @@ type ClassifyReviewsForSamplingRow struct {
 	Stratum        string `json:"stratum"`
 }
 
-// The candidate pool for a sample: every completed review in the population, tagged with its stratum.
-// A review is classified by the panel's per-pattern votes: flagged_majority if any pattern reached a
+// the candidate pool for a sample: every completed review in the population, tagged with its stratum.
+// a review is classified by the panels per-pattern votes: flagged_majority if any pattern reached a
 // majority Present (n_present*2 > n_total), else flagged_split if any pattern had Present votes without
 // a majority (the panel disagreed), else silent (no pattern got a single Present vote).
 func (q *Queries) ClassifyReviewsForSampling(ctx context.Context, arg ClassifyReviewsForSamplingParams) ([]ClassifyReviewsForSamplingRow, error) {
@@ -91,7 +91,7 @@ type CountIndividualsPerGameRow struct {
 	Individuals    int32 `json:"individuals"`
 }
 
-// Curated individuals (reviews in a population) per game, across every population.
+// curated individuals (reviews in a population) per game, across every population.
 func (q *Queries) CountIndividualsPerGame(ctx context.Context) ([]CountIndividualsPerGameRow, error) {
 	rows, err := q.db.Query(ctx, countIndividualsPerGame)
 	if err != nil {
@@ -163,7 +163,7 @@ ORDER BY created_at DESC
 LIMIT 1
 `
 
-// The most recent gold run for a population. Adjudication samples and decisions write into one gold
+// the most recent gold run for a population. adjudication samples and decisions write into one gold
 // run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
 func (q *Queries) GetGoldRunForPopulation(ctx context.Context, populationID int32) (int32, error) {
 	row := q.db.QueryRow(ctx, getGoldRunForPopulation, populationID)
@@ -180,7 +180,7 @@ ORDER BY created_at DESC
 LIMIT 1
 `
 
-// The most recent sample drawn for a panel run, to reopen its queue.
+// the most recent sample drawn for a panel run, to reopen its queue.
 func (q *Queries) GetLatestSampleForRun(ctx context.Context, panelRunID int32) (AdjudicationSample, error) {
 	row := q.db.QueryRow(ctx, getLatestSampleForRun, panelRunID)
 	var i AdjudicationSample
@@ -206,7 +206,7 @@ ORDER BY r.created_at DESC
 LIMIT 1
 `
 
-// The llm panel run whose votes seed a decision on this review. One panel per population; pick the
+// the llm panel run whose votes seed a decision on this review. one panel per population; pick the
 // most recent so the frozen seed reflects the panel the auditor is actually looking at.
 func (q *Queries) GetPanelRunForReview(ctx context.Context, individualID int64) (int32, error) {
 	row := q.db.QueryRow(ctx, getPanelRunForReview, individualID)
@@ -224,9 +224,9 @@ type GetPatternIDByCodeParams struct {
 	Version int32  `json:"version"`
 }
 
-// Resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id, within a taxonomy
-// version. Code is unique only per (code, version), so the version is required or the wrong version's
-// id comes back — which would make a saved adjudication unreadable against the run's actual taxonomy.
+// resolve a meso pattern code (e.g. 'PM-1') the frontend sends to its row id, within a taxonomy
+// version. code is unique only per (code, version), so the version is required or the wrong versions
+// id comes back — which would make a saved adjudication unreadable against the runs actual taxonomy.
 func (q *Queries) GetPatternIDByCode(ctx context.Context, arg GetPatternIDByCodeParams) (int32, error) {
 	row := q.db.QueryRow(ctx, getPatternIDByCode, arg.Code, arg.Version)
 	var id int32
@@ -245,7 +245,7 @@ type GetPopulationRow struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
-// One population row by id, for the population/run detail headers (modality, description, created_at).
+// one population row by id, for the population/run detail headers (modality, description, created_at).
 func (q *Queries) GetPopulation(ctx context.Context, id int32) (GetPopulationRow, error) {
 	row := q.db.QueryRow(ctx, getPopulation, id)
 	var i GetPopulationRow
@@ -261,7 +261,7 @@ func (q *Queries) GetPopulation(ctx context.Context, id int32) (GetPopulationRow
 const getReviewMeta = `-- name: GetReviewMeta :one
 SELECT a.modality,
        COALESCE(td.body, '')::text AS body,
-       COALESCE(td.voted_up, false) AS voted_up,
+       COALESCE((td.source_meta->>'voted_up')::boolean, false)::boolean AS voted_up,
        COALESCE(td.lang, '')::text AS lang,
        COALESCE(img.image_uri, '')::text AS image_uri,
        COALESCE(img.description, '')::text AS description,
@@ -283,9 +283,7 @@ type GetReviewMetaRow struct {
 	ExternalGameID int32  `json:"external_game_id"`
 }
 
-// The review header for the auditor/blind views: what to render plus the game. modality says which
-// branch to render, so the joins are LEFT and the columns coalesced, a text review has no image_uri and
-// an image review has no body.
+// the review header for the auditor/blind views
 func (q *Queries) GetReviewMeta(ctx context.Context, individualID int64) (GetReviewMetaRow, error) {
 	row := q.db.QueryRow(ctx, getReviewMeta, individualID)
 	var i GetReviewMetaRow
@@ -315,7 +313,7 @@ type InsertAdjudicationSampleParams struct {
 	Params     json.RawMessage `json:"params"`
 }
 
-// The sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
+// the sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
 func (q *Queries) InsertAdjudicationSample(ctx context.Context, arg InsertAdjudicationSampleParams) (int64, error) {
 	row := q.db.QueryRow(ctx, insertAdjudicationSample,
 		arg.PanelRunID,
@@ -342,7 +340,7 @@ type InsertAdjudicationSampleItemParams struct {
 	SelectionProb  float64 `json:"selection_prob"`
 }
 
-// One frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
+// one frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
 func (q *Queries) InsertAdjudicationSampleItem(ctx context.Context, arg InsertAdjudicationSampleItemParams) error {
 	_, err := q.db.Exec(ctx, insertAdjudicationSampleItem,
 		arg.SampleID,
@@ -373,7 +371,7 @@ type InsertGameDisplayParams struct {
 	DisplayColor   string `json:"display_color"`
 }
 
-// Register a game so it appears on the dashboard list and can be scraped.
+// register a game so it appears on the dashboard list and can be scraped.
 func (q *Queries) InsertGameDisplay(ctx context.Context, arg InsertGameDisplayParams) (GameDisplay, error) {
 	row := q.db.QueryRow(ctx, insertGameDisplay,
 		arg.ExternalGameID,
@@ -411,7 +409,7 @@ type ListAnnotatorsWithModelRow struct {
 	Model *string `json:"model"`
 }
 
-// Every annotator as a form option, carrying the display model name for llm annotators (NULL for
+// every annotator as a form option, carrying the display model name for llm annotators (NULL for
 // humans). ListAnnotators returns the raw rows with only a model_id; this resolves the name in SQL so
 // the API never has to look models up one by one.
 func (q *Queries) ListAnnotatorsWithModel(ctx context.Context) ([]ListAnnotatorsWithModelRow, error) {
@@ -445,7 +443,7 @@ FROM game_display
 ORDER BY external_game_id
 `
 
-// The curated games with their presentation metadata. external_game_id is the stable id
+// the curated games with their presentation metadata. external_game_id is the stable id
 // the frontend uses as `gameId`; the rest are display-only fields the pipeline never needed.
 func (q *Queries) ListGameDisplays(ctx context.Context) ([]GameDisplay, error) {
 	rows, err := q.db.Query(ctx, listGameDisplays)
@@ -491,7 +489,7 @@ type ListMembersForRunRow struct {
 	Label string `json:"label"`
 }
 
-// The panel members of a run: every annotator referenced by runs.annotator_ids, with the kind
+// the panel members of a run: every annotator referenced by runs.annotator_ids, with the kind
 // (llm | human) and a display label. LLM members carry their model name, humans their own label.
 func (q *Queries) ListMembersForRun(ctx context.Context, runID int32) ([]ListMembersForRunRow, error) {
 	rows, err := q.db.Query(ctx, listMembersForRun, runID)
@@ -534,8 +532,8 @@ type ListPopulationsRow struct {
 	Individuals int32              `json:"individuals"`
 }
 
-// Every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
-// still appears with a zero count. Newest first, the order an operator picking a population wants.
+// every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
+// still appears with a zero count. newest first, the order an operator picking a population wants.
 func (q *Queries) ListPopulations(ctx context.Context) ([]ListPopulationsRow, error) {
 	rows, err := q.db.Query(ctx, listPopulations)
 	if err != nil {
@@ -590,9 +588,9 @@ type ListPopulationsForGameRow struct {
 	Annotated    int32              `json:"annotated"`
 }
 
-// The populations that contain this game's reviews, each with the game's slice: how many of the
-// game's individuals fall in the population, and how many of those have a completed annotation. A
-// population is multi-game (stratified, per-game capped), so this is THIS game's part of it. Counts
+// the populations that contain this games reviews, each with the games slice: how many of the
+// games individuals fall in the population, and how many of those have a completed annotation. a
+// population is multi-game (stratified, per-game capped), so this is THIS games part of it. counts
 // are per population, never summed across them.
 func (q *Queries) ListPopulationsForGame(ctx context.Context, externalGameID int32) ([]ListPopulationsForGameRow, error) {
 	rows, err := q.db.Query(ctx, listPopulationsForGame, externalGameID)
@@ -631,7 +629,7 @@ type ListPromptsRow struct {
 	Modality string `json:"modality"`
 }
 
-// Every prompt as a form option: its id, name, version and modality. Ordered by id for a stable list.
+// every prompt as a form option: its id, name, version and modality. ordered by id for a stable list.
 func (q *Queries) ListPrompts(ctx context.Context) ([]ListPromptsRow, error) {
 	rows, err := q.db.Query(ctx, listPrompts)
 	if err != nil {
@@ -683,7 +681,7 @@ type ListRunsRow struct {
 	PanelSize       int32              `json:"panel_size"`
 }
 
-// Every run with what an operator needs to recognise and pick it: its type, the population modality as a
+// every run with what an operator needs to recognise and pick it: its type, the population modality as a
 // label, the foreign keys, the taxonomy version, when it ran, and the size of the panel it pinned.
 func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
 	rows, err := q.db.Query(ctx, listRuns)
@@ -734,7 +732,7 @@ type ListRunsForDashboardRow struct {
 	AnnotatorIds []int32            `json:"annotator_ids"`
 }
 
-// One row per run with its population's modality as a human label and its creation time.
+// one row per run with its populations modality as a human label and its creation time.
 // annotator_ids is the panel the run pinned; members are resolved separately per run.
 func (q *Queries) ListRunsForDashboard(ctx context.Context) ([]ListRunsForDashboardRow, error) {
 	rows, err := q.db.Query(ctx, listRunsForDashboard)
@@ -768,7 +766,7 @@ SELECT
     it.external_game_id,
     it.stratum,
     a.modality,
-    COALESCE(td.voted_up, false) AS voted_up,
+    COALESCE((td.source_meta->>'voted_up')::boolean, false)::boolean AS voted_up,
     COALESCE(td.lang, '')::text AS lang,
     (
         SELECT count(*)::int
@@ -801,10 +799,7 @@ type ListSampleReviewsRow struct {
 	Decided        int32  `json:"decided"`
 }
 
-// The queue for a sample: each selected review with the text/vote/language to render and a `decided`
-// count of how many of its patterns already have a gold label in the sample's gold run, for the pass
-// the screen is on. the open and blind worklists pass their own pass so each shows its own progress.
-// Joining the per-review adjudication count in SQL keeps the worklist's progress one query, not N.
+// the queue for a sample
 func (q *Queries) ListSampleReviews(ctx context.Context, arg ListSampleReviewsParams) ([]ListSampleReviewsRow, error) {
 	rows, err := q.db.Query(ctx, listSampleReviews, arg.Pass, arg.SampleID)
 	if err != nil {
@@ -860,10 +855,10 @@ type ModelStatsForGamePopulationRow struct {
 	Annotated int32  `json:"annotated"`
 }
 
-// Per LLM model, the number of DISTINCT reviews of one game annotated within one population. Counting
+// per LLM model, the number of DISTINCT reviews of one game annotated within one population. counting
 // distinct individuals (not annotation rows) and scoping to a single population makes the models
 // comparable: inside one population they all share the same work set, so a complete run shows every
-// model at the population's slice size, not a runaway sum across runs.
+// model at the populations slice size, not a runaway sum across runs.
 func (q *Queries) ModelStatsForGamePopulation(ctx context.Context, arg ModelStatsForGamePopulationParams) ([]ModelStatsForGamePopulationRow, error) {
 	rows, err := q.db.Query(ctx, modelStatsForGamePopulation, arg.ExternalGameID, arg.PopulationID)
 	if err != nil {
@@ -948,8 +943,8 @@ type PanelForPopulationRow struct {
 	Label string `json:"label"`
 }
 
-// The panel that worked a population: every annotator frozen onto any of the population's runs, with
-// its kind (llm | human) and a display label (the model name for an llm, the annotator's own label
+// the panel that worked a population: every annotator frozen onto any of the populations runs, with
+// its kind (llm | human) and a display label (the model name for an llm, the annotators own label
 // for a human). run_annotators is the single source of "who annotates this run".
 func (q *Queries) PanelForPopulation(ctx context.Context, populationID int32) ([]PanelForPopulationRow, error) {
 	rows, err := q.db.Query(ctx, panelForPopulation, populationID)
@@ -994,8 +989,8 @@ type PopulationPerGameRow struct {
 	Annotated      int32 `json:"annotated"`
 }
 
-// For one population, its per-game slice: how many of the population's reviews belong to each game and
-// how many of those have a completed annotation. Mirrors ListPopulationsForGame but pivots to group by
+// for one population, its per-game slice: how many of the populations reviews belong to each game and
+// how many of those have a completed annotation. mirrors ListPopulationsForGame but pivots to group by
 // game within a single population instead of by population within a single game.
 func (q *Queries) PopulationPerGame(ctx context.Context, populationID int32) ([]PopulationPerGameRow, error) {
 	rows, err := q.db.Query(ctx, populationPerGame, populationID)

@@ -42,7 +42,7 @@ type ListUnannotatedTextReviewsRow struct {
 	Body             string `json:"body"`
 }
 
-// The annotation worker's queue: items in the run's population not yet successfully annotated by an annotator
+// the annotation workers queue: items in the runs population not yet successfully annotated by an annotator
 func (q *Queries) ListUnannotatedTextReviews(ctx context.Context, arg ListUnannotatedTextReviewsParams) ([]ListUnannotatedTextReviewsRow, error) {
 	rows, err := q.db.Query(ctx, listUnannotatedTextReviews, arg.ID, arg.AnnotatorID, arg.Limit)
 	if err != nil {
@@ -83,8 +83,8 @@ type UpsertAnnotationParams struct {
 	ResponseMeta []byte `json:"response_meta"`
 }
 
-// Idempotent. The WHERE guard means an already completed annotation is not touched
-// Returning yields no rows in this case, and the worker treats it as already done
+// idempotent. the WHERE guard means an already completed annotation is not touched
+// returning yields no rows in this case, and the worker treats it as already done
 func (q *Queries) UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) (int64, error) {
 	row := q.db.QueryRow(ctx, upsertAnnotation,
 		arg.RunID,

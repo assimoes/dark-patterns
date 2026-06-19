@@ -77,7 +77,7 @@ type OpsCriteria struct {
 	GameIDs         []int32   `json:"game_ids,omitempty"`
 }
 
-// addAnnotatorRequest is the body of POST /api/annotators. the family/slug/name/modalities fields only
+// AddAnnotatorRequest is the body of POST /api/annotators. the family/slug/name/modalities fields only
 // matter for kind=llm, theyre the model row we upsert before linking the annotator to it.
 type AddAnnotatorRequest struct {
 	Kind       string   `json:"kind"`
@@ -88,7 +88,7 @@ type AddAnnotatorRequest struct {
 	Modalities []string `json:"modalities"`
 }
 
-// annotatorResponse is the 201 body of POST /api/annotators. ModelID is null for humans.
+// AnnotatorResponse is the 201 body of POST /api/annotators. ModelID is null for humans.
 type AnnotatorResponse struct {
 	ID      int32  `json:"id"`
 	Kind    string `json:"kind"`
@@ -96,7 +96,7 @@ type AnnotatorResponse struct {
 	ModelID *int32 `json:"model_id"`
 }
 
-// addGameRequest is the body of POST /api/games, the fields that become a game_display row.
+// AddGameRequest is the body of POST /api/games, the fields that become a game_display row.
 type AddGameRequest struct {
 	ExternalGameID int32  `json:"external_game_id"`
 	Name           string `json:"name"`

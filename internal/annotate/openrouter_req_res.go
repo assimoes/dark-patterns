@@ -28,7 +28,6 @@ type oraRequest struct {
 	Messages    []oraReqMessage `json:"messages"`
 	Temperature float64         `json:"temperature"`
 
-	// some models respect type: json_object and others dont.
 	ResponseFormat *oraResponseFormat `json:"response_format,omitempty"`
 }
 

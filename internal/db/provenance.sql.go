@@ -25,7 +25,7 @@ type ListRunAnnotatorsRow struct {
 	Sampling      json.RawMessage `json:"sampling"`
 }
 
-// Read the frozen panel.
+// read the frozen panel.
 func (q *Queries) ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error) {
 	rows, err := q.db.Query(ctx, listRunAnnotators, runID)
 	if err != nil {
@@ -61,7 +61,7 @@ type SetRunConfigDigestParams struct {
 	ConfigDigest *string `json:"config_digest"`
 }
 
-// Stamp the digest once. A second snapshot is a no-op
+// stamp the digest once. a second snapshot is a no-op
 func (q *Queries) SetRunConfigDigest(ctx context.Context, arg SetRunConfigDigestParams) error {
 	_, err := q.db.Exec(ctx, setRunConfigDigest, arg.ID, arg.ConfigDigest)
 	return err
@@ -82,7 +82,7 @@ type SnapshotRunAnnotatorParams struct {
 	Sampling      json.RawMessage `json:"sampling"`
 }
 
-// Freeze one panel member
+// freeze one panel member
 func (q *Queries) SnapshotRunAnnotator(ctx context.Context, arg SnapshotRunAnnotatorParams) error {
 	_, err := q.db.Exec(ctx, snapshotRunAnnotator,
 		arg.RunID,

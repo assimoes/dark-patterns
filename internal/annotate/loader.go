@@ -17,7 +17,7 @@ type RenderCtx struct {
 	Taxonomy string
 }
 
-// promptData backs both the system and user templates. Taxonomy block feeds simple
+// promptData backs both the system and user templates. taxonomy block feeds simple
 // prompts; HighLevels/Patterns feed the richer ones; the rest carry the per-item review.
 type promptData struct {
 	Taxonomy        string
@@ -31,7 +31,7 @@ type promptData struct {
 	Nonce           string
 }
 
-// Loader fetches one item and renders it into a model Input. One per modality.
+// Loader fetches one item and renders it into a model Input. one per modality.
 type Loader interface {
 	Modality() string
 	Load(ctx context.Context, q *db.Queries, rc RenderCtx, individualID int64) (Input, error)
@@ -64,7 +64,6 @@ func (TextLoader) Load(ctx context.Context, q *db.Queries,
 		Taxonomy: rc.Taxonomy,
 		Content:  row.Body,
 		Language: row.Lang,
-		VotedUp:  row.VotedUp,
 		Nonce:    nonce,
 	}); err != nil {
 		return Input{}, err
@@ -85,7 +84,7 @@ func (ImageLoader) Modality() string {
 	return "image"
 }
 
-// Load fetches the image uri, renders the user template (any ocr text rides along in Content), and
+// Load fetches the image uri, renders the user template (any OCR text rides along in Content), and
 // returns an Input carrying the image so the annotator sends it as an image_url part.
 func (ImageLoader) Load(ctx context.Context, q *db.Queries,
 	rc RenderCtx, individualID int64) (Input, error) {
@@ -113,7 +112,7 @@ func (ImageLoader) Load(ctx context.Context, q *db.Queries,
 }
 
 // MultimodalLoader pulls an artifact that has both a text body and an image, and fills one Input with
-// both: the body as the user text and the image attached. this is the seam, the panel call is unchanged.
+// both: the body as the user text and the image attached.
 type MultimodalLoader struct{}
 
 // Modality is "multimodal".
@@ -156,7 +155,7 @@ func newNonce() (string, error) {
 }
 
 // renderUser runs the per-item user template with a fresh nonce. shared by the image and multimodal
-// loaders so each Load stays short. (TextLoader renders its own, since it also passes language/voted_up.)
+// loaders so each Load stays short. (textLoader renders its own, since it also passes language/voted_up.)
 func renderUser(rc RenderCtx, content string) (string, error) {
 	nonce, err := newNonce()
 	if err != nil {
