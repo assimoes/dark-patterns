@@ -30,6 +30,9 @@ type Querier interface {
 	// Clear prior pattern rows before re-writing, so a retry doesn't leave stale ones.
 	DeleteAnnotationPatterns(ctx context.Context, annotationID int64) error
 	FreezeImagePopulation(ctx context.Context, arg FreezeImagePopulationParams) (int64, error)
+	// a multimodal artifact has both channels, so this joins both detail tables: only artifacts with a body
+	// AND an image are frozen in. same cap and cutoff as the image freeze, no hours filter.
+	FreezeMultimodalPopulation(ctx context.Context, arg FreezeMultimodalPopulationParams) (int64, error)
 	FreezeStratifiedPopulation(ctx context.Context, arg FreezeStratifiedPopulationParams) (int64, error)
 	GameReviewTotals(ctx context.Context) ([]GameReviewTotalsRow, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
@@ -44,6 +47,9 @@ type Querier interface {
 	GetLatestSampleForRun(ctx context.Context, panelRunID int32) (AdjudicationSample, error)
 	GetMesoPatternCodes(ctx context.Context, version int32) ([]GetMesoPatternCodesRow, error)
 	GetModelBySlug(ctx context.Context, slug string) (Model, error)
+	// a multimodal item carries both channels: a text body and an image. inner-joining both detail tables
+	// means it only returns artifacts that actually have both, which is exactly the multimodal case.
+	GetMultimodalForIndividual(ctx context.Context, id int64) (GetMultimodalForIndividualRow, error)
 	// The llm panel run whose votes seed a decision on this review. One panel per population; pick the
 	// most recent so the frozen seed reflects the panel the auditor is actually looking at.
 	GetPanelRunForReview(ctx context.Context, individualID int64) (int32, error)

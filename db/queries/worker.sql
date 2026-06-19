@@ -30,3 +30,13 @@ FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN image_details img ON img.artifact_id = a.id
 WHERE i.id = $1;
+
+-- name: GetMultimodalForIndividual :one
+-- a multimodal item carries both channels: a text body and an image. inner-joining both detail tables
+-- means it only returns artifacts that actually have both, which is exactly the multimodal case.
+SELECT a.id AS artifact_id, td.body, img.image_uri, img.mime_type
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+JOIN text_review_details td ON td.artifact_id = a.id
+JOIN image_details img ON img.artifact_id = a.id
+WHERE i.id = $1;
