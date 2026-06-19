@@ -1,22 +1,6 @@
 package ingest
 
-import (
-	"crypto/sha256"
-
-	"github.com/assimoes/dsr/internal/steam"
-	"github.com/jackc/pgx/v5/pgtype"
-)
-
-// hash is the dedupe key: recommendation id and body with a null byte between so
-// "ab"+"c" and "a"+"bc" dont collide.
-func hash(r steam.Review) []byte {
-	h := sha256.New()
-	h.Write([]byte(r.RecommendationID))
-	h.Write([]byte{0})
-	h.Write([]byte(r.Review))
-
-	return h.Sum(nil)
-}
+import "github.com/jackc/pgx/v5/pgtype"
 
 func toNumeric(s string) (pgtype.Numeric, error) {
 	var n pgtype.Numeric
@@ -28,5 +12,3 @@ func toNumeric(s string) (pgtype.Numeric, error) {
 	err := n.Scan(s)
 	return n, err
 }
-
-func ptr[T any](v T) *T { return &v }

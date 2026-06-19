@@ -6,8 +6,10 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/assimoes/dsr/internal/db"
+	"github.com/assimoes/dsr/internal/ingest"
 	"github.com/assimoes/dsr/internal/steam"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -49,7 +51,7 @@ func review(id, body string) steam.Review {
 	return r
 }
 
-func TestWritePageStoresRowsAndCheckpoints(t *testing.T) {
+func TestWriteItemsStoresRowsAndCheckpoints(t *testing.T) {
 
 	pool := testPool(t)
 	ctx := context.Background()
@@ -63,13 +65,19 @@ func TestWritePageStoresRowsAndCheckpoints(t *testing.T) {
 
 	q := db.New(tx)
 
-	page := []steam.Review{
-		review("rec-1", "pay to win garbage"),
-		review("rec-2", "grind wall"),
+	now := time.Now()
+	for _, r := range []steam.Review{review("rec-1", "pay to win garbage"), review("rec-2", "grind wall")} {
+		it := ingest.SteamItem(r)
+		it.ScrapedAt = now
+		if err := ingest.WriteItem(ctx, q, "steam", testGameID, it); err != nil {
+			t.Fatalf("write item: %v", err)
+		}
 	}
 
-	if err := writePage(ctx, q, testGameID, "recent", "english", page, "cursor-page-2"); err != nil {
-		t.Fatalf("writePage: %v", err)
+	if err := q.UpsertScrapeCursor(ctx, db.UpsertScrapeCursorParams{
+		ExternalGameID: testGameID, Source: "steam", Filter: "recent", Language: "english", Cursor: "cursor-page-2",
+	}); err != nil {
+		t.Fatalf("upsert cursor: %v", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -89,7 +97,7 @@ func TestWritePageStoresRowsAndCheckpoints(t *testing.T) {
 	}
 
 	cur, err := db.New(pool).GetScrapeCursor(ctx, db.GetScrapeCursorParams{
-		ExternalGameID: testGameID, Filter: "recent", Language: "english",
+		ExternalGameID: testGameID, Source: "steam", Filter: "recent", Language: "english",
 	})
 	if err != nil {
 		t.Fatalf("get cursor: %v", err)

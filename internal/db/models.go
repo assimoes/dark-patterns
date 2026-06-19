@@ -165,6 +165,7 @@ type ScrapeCursor struct {
 	Language       string             `json:"language"`
 	Cursor         string             `json:"cursor"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Source         string             `json:"source"`
 }
 
 type TaxonomyHighLevel struct {

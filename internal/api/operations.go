@@ -340,7 +340,8 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// createScrape enqueues the first scrape job for a game, exactly like the steam CLI
+// createScrape enqueues the first scrape page for a game on one source. the source picks the worker
+// queue and target is its handle (steam app id, subreddit); filter and language are steam-only knobs.
 func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
 
 	req, ok := decodeJSON[dto.ScrapeRequest](s, w, r)
@@ -348,24 +349,13 @@ func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, err := strconv.ParseInt(req.App, 10, 32)
-	if err != nil || app <= 0 {
-		s.writeError(w, http.StatusBadRequest, "app must be a positive Steam app id", err)
+	if req.GameID <= 0 {
+		s.writeError(w, http.StatusBadRequest, "game_id must be a positive integer", nil)
 		return
 	}
-
-	filter := req.Filter
-	if filter == "" {
-		filter = "recent"
-	}
-	if filter != "recent" && filter != "updated" {
-		s.writeError(w, http.StatusBadRequest, "filter must be 'recent' or 'updated'", nil)
+	if req.Target == "" {
+		s.writeError(w, http.StatusBadRequest, "target is required", nil)
 		return
-	}
-
-	lang := req.Lang
-	if lang == "" {
-		lang = "english"
 	}
 
 	max := req.Max
@@ -377,16 +367,39 @@ func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := scrape.Enqueue(r.Context(), s.riverClient, s.pool, int32(app), filter, lang, max); err != nil {
+	var params map[string]string
+	switch req.Source {
+	case "steam":
+		filter := req.Filter
+		if filter == "" {
+			filter = "recent"
+		}
+		if filter != "recent" && filter != "updated" {
+			s.writeError(w, http.StatusBadRequest, "filter must be 'recent' or 'updated'", nil)
+			return
+		}
+		lang := req.Lang
+		if lang == "" {
+			lang = "english"
+		}
+		params = map[string]string{"filter": filter, "language": lang}
+	case "reddit":
+		params = nil
+	default:
+		s.writeError(w, http.StatusBadRequest, "source must be 'steam' or 'reddit'", nil)
+		return
+	}
+
+	if err := scrape.Enqueue(r.Context(), s.riverClient, s.pool, req.Source, req.GameID, req.Target, params, max); err != nil {
 		s.writeError(w, http.StatusInternalServerError, "enqueue scrape", err)
 		return
 	}
 
 	s.writeJSON(w, http.StatusAccepted, map[string]any{
 		"enqueued": true,
-		"game_id":  int32(app),
-		"filter":   filter,
-		"language": lang,
+		"game_id":  req.GameID,
+		"source":   req.Source,
+		"target":   req.Target,
 		"max":      max,
 	})
 }
