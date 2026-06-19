@@ -245,6 +245,7 @@ func (s *Server) runAdjudicationSample(w http.ResponseWriter, r *http.Request) {
 			ID:       strconv.FormatInt(rv.IndividualID, 10),
 			GameID:   dto.GameID(rv.ExternalGameID),
 			Stratum:  rv.Stratum,
+			Modality: rv.Modality,
 			VotedUp:  rv.VotedUp,
 			Language: rv.Lang,
 			Decided:  int(rv.Decided),
@@ -353,9 +354,12 @@ func (s *Server) reviewAdjudication(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, dto.AdjudicationReview{
 		ID:          strconv.FormatInt(individualID, 10),
 		GameID:      dto.GameID(meta.ExternalGameID),
+		Modality:    meta.Modality,
 		VotedUp:     meta.VotedUp,
 		Language:    meta.Lang,
 		Body:        meta.Body,
+		ImageURI:    meta.ImageUri,
+		Description: meta.Description,
 		PanelModels: panelModels,
 		Detections:  detections,
 		GoldLabels:  goldLabels,
@@ -435,9 +439,11 @@ func (s *Server) reviewBlind(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, dto.BlindReview{
 		ID:         strconv.FormatInt(individualID, 10),
 		GameID:     dto.GameID(meta.ExternalGameID),
+		Modality:   meta.Modality,
 		VotedUp:    meta.VotedUp,
 		Language:   meta.Lang,
 		Body:       meta.Body,
+		ImageURI:   meta.ImageUri,
 		GoldLabels: goldLabels,
 	})
 }

@@ -242,15 +242,6 @@ WHERE a.external_game_id = sqlc.arg(external_game_id)
 GROUP BY m.name
 ORDER BY annotated DESC, m.name;
 
--- name: GetReviewMeta :one
--- The review header for the auditor/blind views: the body to render plus the vote, language and game.
--- One query so an endpoint needs a single round-trip for everything that isn't panel data.
-SELECT td.body, td.voted_up, td.lang, a.external_game_id
-FROM individuals i
-JOIN artifacts a ON a.id = i.artifact_id
-JOIN text_review_details td ON td.artifact_id = a.id
-WHERE i.id = sqlc.arg(individual_id);
-
 -- name: GetGoldRunForPopulation :one
 -- The most recent gold run for a population. Adjudication samples and decisions write into one gold
 -- run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
@@ -324,8 +315,9 @@ SELECT
     it.individual_id,
     it.external_game_id,
     it.stratum,
-    td.voted_up,
-    td.lang,
+    a.modality,
+    COALESCE(td.voted_up, false) AS voted_up,
+    COALESCE(td.lang, '')::text AS lang,
     (
         SELECT count(*)::int
         FROM adjudications adj
@@ -337,6 +329,23 @@ FROM adjudication_sample_items it
 JOIN adjudication_samples s ON s.id = it.sample_id
 JOIN individuals i ON i.id = it.individual_id
 JOIN artifacts a ON a.id = i.artifact_id
-JOIN text_review_details td ON td.artifact_id = a.id
+LEFT JOIN text_review_details td ON td.artifact_id = a.id
 WHERE it.sample_id = sqlc.arg(sample_id)
 ORDER BY it.external_game_id, it.individual_id;
+
+-- name: GetReviewMeta :one
+-- The review header for the auditor/blind views: what to render plus the game. modality says which
+-- branch to render, so the joins are LEFT and the columns coalesced, a text review has no image_uri and
+-- an image review has no body.
+SELECT a.modality,
+       COALESCE(td.body, '')::text AS body,
+       COALESCE(td.voted_up, false) AS voted_up,
+       COALESCE(td.lang, '')::text AS lang,
+       COALESCE(img.image_uri, '')::text AS image_uri,
+       COALESCE(img.description, '')::text AS description,
+       a.external_game_id
+FROM individuals i
+JOIN artifacts a ON a.id = i.artifact_id
+LEFT JOIN text_review_details td ON td.artifact_id = a.id
+LEFT JOIN image_details img ON img.artifact_id = a.id
+WHERE i.id = sqlc.arg(individual_id);

@@ -33,10 +33,12 @@ type CreateSampleResponse struct {
 }
 
 // SampleReview is one review in a persisted samples queue, with its stratum and decided-pattern count.
+// modality tells the worklist whether it is paging text or image reviews.
 type SampleReview struct {
 	ID       string `json:"id"`
 	GameID   string `json:"gameId"`
 	Stratum  string `json:"stratum"`
+	Modality string `json:"modality"`
 	VotedUp  bool   `json:"votedUp"`
 	Language string `json:"language"`
 	Decided  int    `json:"decided"`
@@ -66,13 +68,16 @@ type Detection struct {
 	Explanation string `json:"explanation"`
 }
 
-// AdjudicationReview is the full review an auditor sees.
+// AdjudicationReview is the full review an auditor sees. modality says how to render it.
 type AdjudicationReview struct {
 	ID          string          `json:"id"`
 	GameID      string          `json:"gameId"`
+	Modality    string          `json:"modality"`
 	VotedUp     bool            `json:"votedUp"`
 	Language    string          `json:"language"`
 	Body        string          `json:"body"`
+	ImageURI    string          `json:"imageUri"`
+	Description string          `json:"description"`
 	PanelModels []string        `json:"panelModels"`
 	Detections  []Detection     `json:"detections"`
 	GoldLabels  map[string]bool `json:"goldLabels"`
@@ -83,8 +88,10 @@ type AdjudicationReview struct {
 type BlindReview struct {
 	ID         string          `json:"id"`
 	GameID     string          `json:"gameId"`
+	Modality   string          `json:"modality"`
 	VotedUp    bool            `json:"votedUp"`
 	Language   string          `json:"language"`
 	Body       string          `json:"body"`
+	ImageURI   string          `json:"imageUri"`
 	GoldLabels map[string]bool `json:"goldLabels"`
 }

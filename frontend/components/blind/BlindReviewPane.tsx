@@ -77,38 +77,56 @@ export function BlindReviewPane({
             ) : null}
 
             <div className="px-5 py-5">
-                <p
-                    onMouseUp={onMouseUp}
-                    className={`whitespace-pre-wrap text-[15px] leading-7 text-slate-700 ${capturing ? "cursor-text rounded-lg bg-sky-50/40 ring-1 ring-sky-100" : ""
-                        }`}
-                >
-                    {segments.map((s, i) =>
-                        s.code ? (
-                            <mark
-                                key={i}
-                                title={s.code}
-                                aria-label={`your evidence for ${s.code}`}
-                                onMouseEnter={() => onHover(s.code!)}
-                                onMouseLeave={() => onHover(null)}
-                                className="rounded-sm px-0.5 transition-colors"
-                                style={{
-                                    backgroundColor: hovered === s.code ? `${s.color}33` : `${s.color}14`,
-                                    borderBottom: `2px solid ${s.color}`,
-                                    color: "inherit",
-                                }}
-                            >
-                                {s.text}
-                            </mark>
-                        ) : (
-                            <span key={i}>{s.text}</span>
-                        ),
-                    )}
-                </p>
+                {review.modality === "image" && review.imageUri ? (
+                    // image reviews render the screenshot. presence/absence only, so there is no text to
+                    // select and no evidence to cite — the onMouseUp capture and the cite hint drop out.
+                    <>
+                        <img
+                            src={review.imageUri}
+                            alt={`screenshot for review ${review.id}`}
+                            className="w-full rounded-lg border border-slate-200"
+                        />
+                        <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                            Independent pass — no panel votes are shown. Judge each pattern present or
+                            absent from the screenshot.
+                        </p>
+                    </>
+                ) : (
+                    <>
+                        <p
+                            onMouseUp={onMouseUp}
+                            className={`whitespace-pre-wrap text-[15px] leading-7 text-slate-700 ${capturing ? "cursor-text rounded-lg bg-sky-50/40 ring-1 ring-sky-100" : ""
+                                }`}
+                        >
+                            {segments.map((s, i) =>
+                                s.code ? (
+                                    <mark
+                                        key={i}
+                                        title={s.code}
+                                        aria-label={`your evidence for ${s.code}`}
+                                        onMouseEnter={() => onHover(s.code!)}
+                                        onMouseLeave={() => onHover(null)}
+                                        className="rounded-sm px-0.5 transition-colors"
+                                        style={{
+                                            backgroundColor: hovered === s.code ? `${s.color}33` : `${s.color}14`,
+                                            borderBottom: `2px solid ${s.color}`,
+                                            color: "inherit",
+                                        }}
+                                    >
+                                        {s.text}
+                                    </mark>
+                                ) : (
+                                    <span key={i}>{s.text}</span>
+                                ),
+                            )}
+                        </p>
 
-                <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
-                    Independent pass — no panel votes are shown. Underlines are evidence{" "}
-                    <span className="font-medium text-slate-500">you</span> cited.
-                </p>
+                        <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                            Independent pass — no panel votes are shown. Underlines are evidence{" "}
+                            <span className="font-medium text-slate-500">you</span> cited.
+                        </p>
+                    </>
+                )}
             </div>
         </div>
     );

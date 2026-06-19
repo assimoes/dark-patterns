@@ -259,29 +259,43 @@ func (q *Queries) GetPopulation(ctx context.Context, id int32) (GetPopulationRow
 }
 
 const getReviewMeta = `-- name: GetReviewMeta :one
-SELECT td.body, td.voted_up, td.lang, a.external_game_id
+SELECT a.modality,
+       COALESCE(td.body, '')::text AS body,
+       COALESCE(td.voted_up, false) AS voted_up,
+       COALESCE(td.lang, '')::text AS lang,
+       COALESCE(img.image_uri, '')::text AS image_uri,
+       COALESCE(img.description, '')::text AS description,
+       a.external_game_id
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
-JOIN text_review_details td ON td.artifact_id = a.id
+LEFT JOIN text_review_details td ON td.artifact_id = a.id
+LEFT JOIN image_details img ON img.artifact_id = a.id
 WHERE i.id = $1
 `
 
 type GetReviewMetaRow struct {
+	Modality       string `json:"modality"`
 	Body           string `json:"body"`
 	VotedUp        bool   `json:"voted_up"`
 	Lang           string `json:"lang"`
+	ImageUri       string `json:"image_uri"`
+	Description    string `json:"description"`
 	ExternalGameID int32  `json:"external_game_id"`
 }
 
-// The review header for the auditor/blind views: the body to render plus the vote, language and game.
-// One query so an endpoint needs a single round-trip for everything that isn't panel data.
+// The review header for the auditor/blind views: what to render plus the game. modality says which
+// branch to render, so the joins are LEFT and the columns coalesced, a text review has no image_uri and
+// an image review has no body.
 func (q *Queries) GetReviewMeta(ctx context.Context, individualID int64) (GetReviewMetaRow, error) {
 	row := q.db.QueryRow(ctx, getReviewMeta, individualID)
 	var i GetReviewMetaRow
 	err := row.Scan(
+		&i.Modality,
 		&i.Body,
 		&i.VotedUp,
 		&i.Lang,
+		&i.ImageUri,
+		&i.Description,
 		&i.ExternalGameID,
 	)
 	return i, err
@@ -753,8 +767,9 @@ SELECT
     it.individual_id,
     it.external_game_id,
     it.stratum,
-    td.voted_up,
-    td.lang,
+    a.modality,
+    COALESCE(td.voted_up, false) AS voted_up,
+    COALESCE(td.lang, '')::text AS lang,
     (
         SELECT count(*)::int
         FROM adjudications adj
@@ -766,7 +781,7 @@ FROM adjudication_sample_items it
 JOIN adjudication_samples s ON s.id = it.sample_id
 JOIN individuals i ON i.id = it.individual_id
 JOIN artifacts a ON a.id = i.artifact_id
-JOIN text_review_details td ON td.artifact_id = a.id
+LEFT JOIN text_review_details td ON td.artifact_id = a.id
 WHERE it.sample_id = $2
 ORDER BY it.external_game_id, it.individual_id
 `
@@ -780,6 +795,7 @@ type ListSampleReviewsRow struct {
 	IndividualID   int64  `json:"individual_id"`
 	ExternalGameID int32  `json:"external_game_id"`
 	Stratum        string `json:"stratum"`
+	Modality       string `json:"modality"`
 	VotedUp        bool   `json:"voted_up"`
 	Lang           string `json:"lang"`
 	Decided        int32  `json:"decided"`
@@ -802,6 +818,7 @@ func (q *Queries) ListSampleReviews(ctx context.Context, arg ListSampleReviewsPa
 			&i.IndividualID,
 			&i.ExternalGameID,
 			&i.Stratum,
+			&i.Modality,
 			&i.VotedUp,
 			&i.Lang,
 			&i.Decided,

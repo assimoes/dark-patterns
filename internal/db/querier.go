@@ -57,8 +57,9 @@ type Querier interface {
 	GetPopulation(ctx context.Context, id int32) (GetPopulationRow, error)
 	GetPrompt(ctx context.Context, id int32) (Prompt, error)
 	GetPromptByNameVersion(ctx context.Context, arg GetPromptByNameVersionParams) (Prompt, error)
-	// The review header for the auditor/blind views: the body to render plus the vote, language and game.
-	// One query so an endpoint needs a single round-trip for everything that isn't panel data.
+	// The review header for the auditor/blind views: what to render plus the game. modality says which
+	// branch to render, so the joins are LEFT and the columns coalesced, a text review has no image_uri and
+	// an image review has no body.
 	GetReviewMeta(ctx context.Context, individualID int64) (GetReviewMetaRow, error)
 	// The review body to render for the auditor
 	GetReviewText(ctx context.Context, individualID int64) (string, error)
