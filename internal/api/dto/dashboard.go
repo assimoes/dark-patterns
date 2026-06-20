@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"encoding/json"
 	"strconv"
 
 	"github.com/assimoes/dsr/internal/db"
@@ -13,7 +14,15 @@ func NewGame(d db.GameDisplay) Game {
 		Short:        d.Short,
 		Monetization: d.Monetization,
 		Color:        d.DisplayColor,
+		SourceRefs:   DecodeRefs(d.SourceRefs),
 	}
+}
+
+// DecodeRefs reads a source_refs jsonb blob into a map; a null/invalid blob reads as empty.
+func DecodeRefs(b []byte) map[string]string {
+	m := map[string]string{}
+	_ = json.Unmarshal(b, &m)
+	return m
 }
 
 func NewPopulationStat(d db.CountIndividualsPerGameRow) PopulationStat {
@@ -50,13 +59,14 @@ func NewRun(d db.ListRunsForDashboardRow, members []Member) Run {
 	}
 }
 
-// Game is one curated Steam game with its presentation metadata.
+// Game is one curated game with its presentation metadata and per-source scrape handles.
 type Game struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Short        string `json:"short"`
-	Monetization string `json:"monetization"`
-	Color        string `json:"color"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Short        string            `json:"short"`
+	Monetization string            `json:"monetization"`
+	Color        string            `json:"color"`
+	SourceRefs   map[string]string `json:"sourceRefs"`
 }
 
 // PopulationStat is the number of curated individuals (reviews in scope) for a game.

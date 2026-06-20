@@ -4,10 +4,11 @@ import "github.com/assimoes/dsr/internal/db"
 
 func NewAnnotator(a db.ListAnnotatorsWithModelRow) Annotator {
 	return Annotator{
-		ID:    int(a.ID),
-		Kind:  a.Kind,
-		Label: a.Label,
-		Model: a.Model,
+		ID:       int(a.ID),
+		Kind:     a.Kind,
+		Label:    a.Label,
+		Model:    a.Model,
+		RefCount: int(a.RefCount),
 	}
 }
 
@@ -17,6 +18,7 @@ func NewPrompt(a db.ListPromptsRow) Prompt {
 		Name:     a.Name,
 		Version:  int(a.Version),
 		Modality: a.Modality,
+		RunCount: int(a.RunCount),
 	}
 }
 
@@ -86,7 +88,7 @@ func NewRunDetail(run db.Run, population string, panel []Member, hasSample bool)
 	}
 }
 
-func NewGameSummary(d db.GameDisplay, reviews, annotated int) GameSummary {
+func NewGameSummary(d db.GameDisplay, reviews, annotated, artifacts int) GameSummary {
 	return GameSummary{
 		ID:           GameID(d.ExternalGameID),
 		Name:         d.Name,
@@ -95,6 +97,8 @@ func NewGameSummary(d db.GameDisplay, reviews, annotated int) GameSummary {
 		Color:        d.DisplayColor,
 		Reviews:      reviews,
 		Annotated:    annotated,
+		Artifacts:    artifacts,
+		SourceRefs:   DecodeRefs(d.SourceRefs),
 	}
 }
 
@@ -132,20 +136,24 @@ type PopulationDetail struct {
 	Runs      []PopulationRun  `json:"runs"`
 }
 
-// Annotator is one annotator as a form option (model name for llm, null for humans).
+// Annotator is one annotator as a form option (model name for llm, null for humans). refCount is how
+// many runs/annotations reference it; nonzero means it is frozen and cannot be deleted.
 type Annotator struct {
-	ID    int     `json:"id"`
-	Kind  string  `json:"kind"`
-	Label string  `json:"label"`
-	Model *string `json:"model"`
+	ID       int     `json:"id"`
+	Kind     string  `json:"kind"`
+	Label    string  `json:"label"`
+	Model    *string `json:"model"`
+	RefCount int     `json:"refCount"`
 }
 
-// Prompt is one prompt as a form option.
+// Prompt is one prompt as a form option. runCount is how many runs use it; nonzero means it is frozen
+// and cannot be edited or deleted.
 type Prompt struct {
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
 	Version  int    `json:"version"`
 	Modality string `json:"modality"`
+	RunCount int    `json:"runCount"`
 }
 
 // RunSummary is one run in the run list: enough to recognise and pick it.
@@ -176,11 +184,13 @@ type RunDetail struct {
 
 // GameSummary is one game with its display metadata and review progress, the row a games grid renders.
 type GameSummary struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Short        string `json:"short"`
-	Monetization string `json:"monetization"`
-	Color        string `json:"color"`
-	Reviews      int    `json:"reviews"`
-	Annotated    int    `json:"annotated"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Short        string            `json:"short"`
+	Monetization string            `json:"monetization"`
+	Color        string            `json:"color"`
+	Reviews      int               `json:"reviews"`
+	Annotated    int               `json:"annotated"`
+	Artifacts    int               `json:"artifacts"`
+	SourceRefs   map[string]string `json:"sourceRefs"`
 }

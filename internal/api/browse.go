@@ -141,16 +141,27 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	artifactRows, err := s.q.GameArtifactTotals(ctx)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "load artifact totals", err)
+		return
+	}
+
 	type stat struct{ reviews, annotated int }
 	stats := make(map[int32]stat, len(statRows))
 	for _, st := range statRows {
 		stats[st.ExternalGameID] = stat{reviews: int(st.Reviews), annotated: int(st.Annotated)}
 	}
 
+	artifacts := make(map[int32]int, len(artifactRows))
+	for _, a := range artifactRows {
+		artifacts[a.ExternalGameID] = int(a.Artifacts)
+	}
+
 	out := make([]dto.GameSummary, 0, len(displays))
 	for _, d := range displays {
 		st := stats[d.ExternalGameID]
-		out = append(out, dto.NewGameSummary(d, st.reviews, st.annotated))
+		out = append(out, dto.NewGameSummary(d, st.reviews, st.annotated, artifacts[d.ExternalGameID]))
 	}
 
 	s.writeJSON(w, http.StatusOK, out)

@@ -1,7 +1,7 @@
 -- name: ListGameDisplays :many
--- the curated games with their presentation metadata. external_game_id is the stable id
--- the frontend uses as `gameId`; the rest are display-only fields the pipeline never needed.
-SELECT external_game_id, name, short, monetization, display_color
+-- the curated games with their presentation metadata and per-source handles. external_game_id is the
+-- stable internal id the frontend uses as `gameId`; source_refs maps each source to its scrape handle.
+SELECT external_game_id, name, short, monetization, display_color, source_refs
 FROM game_display
 ORDER BY external_game_id;
  
@@ -131,15 +131,11 @@ WHERE r.population_id = sqlc.arg(population_id)
 ORDER BY an.kind, label;
 
 -- name: InsertGameDisplay :one
--- register a game so it appears on the dashboard list and can be scraped.
-INSERT INTO game_display (external_game_id, name, short, monetization, display_color)
+-- register a game so it appears on the dashboard list and can be scraped. external_game_id is left to
+-- the sequence (a high internal id), source_refs holds the per-source scrape handles.
+INSERT INTO game_display (name, short, monetization, display_color, source_refs)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (external_game_id) DO UPDATE
-    SET name          = EXCLUDED.name,
-        short         = EXCLUDED.short,
-        monetization  = EXCLUDED.monetization,
-        display_color = EXCLUDED.display_color
-RETURNING external_game_id, name, short, monetization, display_color;
+RETURNING external_game_id, name, short, monetization, display_color, source_refs;
 
 -- name: ListPopulations :many
 -- every population with its size (the number of frozen individuals). LEFT JOIN so an empty population
@@ -179,8 +175,12 @@ GROUP BY a.external_game_id
 ORDER BY a.external_game_id;
  
 -- name: ListPrompts :many
--- every prompt as a form option: its id, name, version and modality. ordered by id for a stable list.
-SELECT id, name, version, modality FROM prompts ORDER BY id;
+-- every prompt as a form option: its id, name, version and modality, plus how many runs use it (a
+-- prompt with runs is frozen). ordered by id for a stable list.
+SELECT p.id, p.name, p.version, p.modality,
+    (SELECT count(*) FROM runs r WHERE r.prompt_id = p.id)::int AS run_count
+FROM prompts p
+ORDER BY p.id;
  
 -- name: ListRuns :many
 -- every run with what an operator needs to recognise and pick it: its type, the population modality as a
@@ -206,7 +206,9 @@ SELECT
     an.id,
     an.kind,
     an.label,
-    m.name AS model
+    m.name AS model,
+    (SELECT count(*) FROM run_annotators ra WHERE ra.annotator_id = an.id)::int +
+    (SELECT count(*) FROM annotations a WHERE a.annotator_id = an.id)::int AS ref_count
 FROM annotators an
 LEFT JOIN models m ON m.id = an.model_id
 ORDER BY an.kind, an.label;

@@ -3,6 +3,7 @@ import {
     GameRow,
     PopulationDetail,
     PopulationSummary,
+    PromptDetail,
     PromptRow,
     RunDetail,
     RunSummary
@@ -22,6 +23,9 @@ export default {
 
     // GET /api/prompts
     listPrompts: () => fetchJSON<PromptRow[]>("/api/prompts"),
+
+    // GET /api/prompts/{id}
+    getPrompt: (id: number) => fetchJSON<PromptDetail>(`/api/prompts/${id}`),
 
     // GET /api/runs
     listRuns: () => fetchJSON<RunSummary[]>("/api/runs"),

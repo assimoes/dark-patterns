@@ -1,12 +1,13 @@
 import { Monetization } from "./dashboard";
 
-// POST /api/games — register a curated Steam game.
+// POST /api/games — register a curated game. the id is auto-assigned; source_refs maps each source to
+// its scrape handle, e.g. {"steam":"570","reddit":"r/EVE"}.
 export type CreateGameInput = {
-    external_game_id: number;
-    name?: string;
+    name: string;
     short?: string;
     monetization?: Monetization;
     color?: string;
+    source_refs?: Record<string, string>;
 };
 export type CreateGameResult = {
     id: number;
@@ -14,6 +15,39 @@ export type CreateGameResult = {
     short: string;
     monetization: Monetization;
     color: string;
+    sourceRefs: Record<string, string>;
+};
+
+// PUT /api/games/{id} — edit a game's display fields and source handles.
+export type UpdateGameInput = {
+    name: string;
+    short: string;
+    monetization: Monetization;
+    color: string;
+    source_refs: Record<string, string>;
+};
+
+// POST /api/prompts and PUT /api/prompts/{id}.
+export type PromptInput = {
+    name: string;
+    version: number;
+    modality: string;
+    system_prompt?: string;
+    template: string;
+};
+
+// PUT /api/annotators/{id} — only the label is editable.
+export type UpdateAnnotatorInput = {
+    label: string;
+};
+
+// GET /api/{populations,runs}/{id}/impact — the blast radius of a cascade delete.
+export type ImpactResult = {
+    individuals: number;
+    runs: number;
+    annotations: number;
+    samples: number;
+    adjudications: number;
 };
 
 // POST /api/annotators — add a human or an llm panel member.
@@ -71,15 +105,15 @@ export type CreateRunResult = {
     annotator_ids: number[];
 };
 
-// POST /api/scrapes — enqueue a scrape for a game on one source. target is the source handle (steam
-// app id, subreddit); filter and lang are steam-only.
+// POST /api/scrapes — enqueue a scrape for a game on one source. source is whatever key the game has in
+// its source_refs; the backend resolves the target from there (a target here overrides it). filter and
+// lang are optional knobs a source may use.
 export type ScrapeFilter = "recent" | "updated";
-export type ScrapeSource = "steam" | "reddit";
 
 export type EnqueueScrapeInput = {
     game_id: number;
-    source: ScrapeSource;
-    target: string;
+    source: string;
+    target?: string;
     filter?: ScrapeFilter;
     lang?: string;
     max?: number;

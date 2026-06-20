@@ -10,6 +10,7 @@ export function useCreateGame() {
         mutationFn: (body: CreateGameInput) => api.operations.createGame(body),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: qk.dashboard })
+            queryClient.invalidateQueries({ queryKey: qk.games })
         }
     })
 }

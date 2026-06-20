@@ -82,11 +82,12 @@ type Artifact struct {
 }
 
 type GameDisplay struct {
-	ExternalGameID int32  `json:"external_game_id"`
-	Name           string `json:"name"`
-	Short          string `json:"short"`
-	Monetization   string `json:"monetization"`
-	DisplayColor   string `json:"display_color"`
+	ExternalGameID int32           `json:"external_game_id"`
+	Name           string          `json:"name"`
+	Short          string          `json:"short"`
+	Monetization   string          `json:"monetization"`
+	DisplayColor   string          `json:"display_color"`
+	SourceRefs     json.RawMessage `json:"source_refs"`
 }
 
 type ImageDetail struct {

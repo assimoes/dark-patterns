@@ -69,6 +69,19 @@ func (s *Server) Routes() http.Handler {
 
 	mux.HandleFunc("POST /api/images", s.createImages)
 
+	mux.HandleFunc("PUT /api/games/{id}", s.updateGame)
+	mux.HandleFunc("DELETE /api/games/{id}", s.deleteGame)
+	mux.HandleFunc("GET /api/prompts/{id}", s.getPrompt)
+	mux.HandleFunc("POST /api/prompts", s.createPrompt)
+	mux.HandleFunc("PUT /api/prompts/{id}", s.updatePrompt)
+	mux.HandleFunc("DELETE /api/prompts/{id}", s.deletePrompt)
+	mux.HandleFunc("PUT /api/annotators/{id}", s.updateAnnotator)
+	mux.HandleFunc("DELETE /api/annotators/{id}", s.deleteAnnotator)
+	mux.HandleFunc("GET /api/populations/{id}/impact", s.populationImpact)
+	mux.HandleFunc("DELETE /api/populations/{id}", s.deletePopulation)
+	mux.HandleFunc("GET /api/runs/{id}/impact", s.runImpact)
+	mux.HandleFunc("DELETE /api/runs/{id}", s.deleteRun)
+
 	return s.withCORS(s.withLogging(mux))
 }
 
@@ -76,7 +89,7 @@ func (s *Server) Routes() http.Handler {
 func (s *Server) withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", s.origin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 		if r.Method == http.MethodOptions {

@@ -13,6 +13,7 @@ export function useCreateRun() {
         mutationFn: (body: CreateRunInput) => api.operations.createRun(body),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: qk.dashboard });
+            queryClient.invalidateQueries({ queryKey: qk.runs });
         },
     });
 }

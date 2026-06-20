@@ -69,7 +69,7 @@ export function AdjudicationView() {
                     body="Draw a stratified adjudication sample before reviewing."
                     action={
                         <Link
-                            href="/operations/adjudication-sample"
+                            href="/operations/browse/runs"
                             className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700"
                         >
                             Create adjudication sample

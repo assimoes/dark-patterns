@@ -3,16 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// The operator area's tab strip.
+// The operator area's tab strip. one tab per entity; each page lists and manages (create/edit/delete).
 const tabs = [
-    { href: "/operations/browse", label: "Browse" },
-    { href: "/operations/games", label: "Games" },
-    { href: "/operations/annotators", label: "Annotators" },
-    { href: "/operations/populations", label: "Populations" },
-    { href: "/operations/runs", label: "Runs" },
-    { href: "/operations/scrapes", label: "Scrapes" },
-    { href: "/operations/annotations", label: "Annotations" },
-    { href: "/operations/adjudication-sample", label: "Adj. sample" },
+    { href: "/operations/browse/games", label: "Games" },
+    { href: "/operations/browse/populations", label: "Populations" },
+    { href: "/operations/browse/runs", label: "Runs" },
+    { href: "/operations/browse/prompts", label: "Prompts" },
+    { href: "/operations/browse/annotators", label: "Annotators" },
 ];
 
 export function OperationsNav() {
@@ -21,11 +18,7 @@ export function OperationsNav() {
     return (
         <nav className="flex flex-wrap gap-1.5">
             {tabs.map((tab) => {
-                // Browse is active for its whole subtree; write forms match their exact path.
-                const active =
-                    tab.href === "/operations/browse"
-                        ? pathname.startsWith("/operations/browse")
-                        : pathname === tab.href;
+                const active = pathname.startsWith(tab.href);
                 return (
                     <Link
                         key={tab.href}
