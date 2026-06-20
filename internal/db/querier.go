@@ -214,6 +214,10 @@ type Querier interface {
 	// the blast radius of deleting a run: its annotations, the adjudication samples it seeds (as panel or
 	// gold), and its adjudications.
 	RunImpact(ctx context.Context, runID int32) (RunImpactRow, error)
+	// per game and meso code, the number of reviews in the run where a majority of the completed panel
+	// flagged the pattern. drives a run's detection profile: most-flagged patterns and family mix, per game
+	// and (summed client-side) across all games. keyed by code, stable across taxonomy versions.
+	RunPatternDistribution(ctx context.Context, runID int32) ([]RunPatternDistributionRow, error)
 	// fixed N individuals per game from the population, ordered deterministically
 	// always yields the same subset.
 	// drops any review where a panel member didnt 'complete' (>=1 parse_error) for the panel run

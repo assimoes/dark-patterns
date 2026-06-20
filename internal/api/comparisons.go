@@ -180,6 +180,24 @@ func (s *Server) comparisonReviews(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, out)
 }
 
+// runDistribution returns a run's per-game pattern detection tallies for its detection profile.
+func (s *Server) runDistribution(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	rows, err := s.q.RunPatternDistribution(r.Context(), id)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "load distribution", err)
+		return
+	}
+	out := make([]dto.PatternCount, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, dto.NewPatternCount(row))
+	}
+	s.writeJSON(w, http.StatusOK, out)
+}
+
 // panelSlugs returns the sorted model slugs of a run's frozen panel.
 func (s *Server) panelSlugs(ctx context.Context, runID int32) ([]string, error) {
 	annotators, err := s.q.ListRunAnnotators(ctx, runID)

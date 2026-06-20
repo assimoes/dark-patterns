@@ -42,3 +42,12 @@ export type CreateComparisonInput = {
     runAId: number;
     runBId: number;
 };
+
+// GET /api/runs/{id}/distribution — one (game, pattern) detection tally: reviews where the panel
+// majority flagged the code. the client rolls these up by pattern and family, per game and overall.
+export type PatternCount = {
+    gameId: string;
+    gameName: string;
+    code: string;
+    reviews: number;
+};
