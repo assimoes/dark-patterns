@@ -17,6 +17,16 @@ type Querier interface {
 	// majority Present (n_present*2 > n_total), else flagged_split if any pattern had Present votes without
 	// a majority (the panel disagreed), else silent (no pattern got a single Present vote).
 	ClassifyReviewsForSampling(ctx context.Context, arg ClassifyReviewsForSamplingParams) ([]ClassifyReviewsForSamplingRow, error)
+	// per shared model (in both panels), how many flagged patterns both runs agreed on vs flipped, across
+	// the shared reviews. the universe is the union of present-cells for that model; mutual absence is not
+	// counted. keyed by the meso code so it is stable across taxonomy versions.
+	ComparisonModelAgreement(ctx context.Context, arg ComparisonModelAgreementParams) ([]ComparisonModelAgreementRow, error)
+	// the worklist: every review both runs annotated, with how many patterns the two panels disagreed on.
+	// this works for any two runs (same or different panels): each panel's verdict on a pattern is whether a
+	// strict majority of its completed members flagged it; a flip is a pattern one panel's majority flagged
+	// and the other's did not. patterns are keyed by meso code (stable across taxonomy versions). the
+	// per-model detail lives in the drill-down.
+	ComparisonReviewDivergence(ctx context.Context, arg ComparisonReviewDivergenceParams) ([]ComparisonReviewDivergenceRow, error)
 	// gold run: how many patterns are decided per review, to show progress on the worklist.
 	CountAdjudicationsPerReview(ctx context.Context, runID int32) ([]CountAdjudicationsPerReviewRow, error)
 	CountAnnotatorRefs(ctx context.Context, annotatorID int32) (int32, error)
@@ -40,6 +50,7 @@ type Querier interface {
 	DeleteAnnotationPatternsByRun(ctx context.Context, runID int32) error
 	DeleteAnnotationsByRun(ctx context.Context, runID int32) error
 	DeleteAnnotator(ctx context.Context, id int32) error
+	DeleteComparison(ctx context.Context, id int32) error
 	DeleteGameDisplay(ctx context.Context, externalGameID int32) error
 	DeleteIndividualsByPopulation(ctx context.Context, populationID int32) error
 	DeletePopulation(ctx context.Context, id int32) error
@@ -58,6 +69,7 @@ type Querier interface {
 	GamesMissingApprovedDescription(ctx context.Context, populationID int32) ([]GamesMissingApprovedDescriptionRow, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
+	GetComparison(ctx context.Context, id int32) (Comparison, error)
 	GetGameDescription(ctx context.Context, id int32) (GameDescription, error)
 	GetGameDisplay(ctx context.Context, externalGameID int32) (GameDisplay, error)
 	// the scrape handle a game registered for one source (e.g. its subreddit for 'reddit'). empty when the
@@ -103,6 +115,7 @@ type Querier interface {
 	// one frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
 	InsertAdjudicationSampleItem(ctx context.Context, arg InsertAdjudicationSampleItemParams) error
 	InsertAnnotationPattern(ctx context.Context, arg InsertAnnotationPatternParams) error
+	InsertComparison(ctx context.Context, arg InsertComparisonParams) (Comparison, error)
 	// store a researched draft (or an invalid/error draft the reviewer must fix).
 	InsertGameDescription(ctx context.Context, arg InsertGameDescriptionParams) (GameDescription, error)
 	// register a game so it appears on the dashboard list and can be scraped. external_game_id is left to
@@ -116,6 +129,7 @@ type Querier interface {
 	// humans). ListAnnotators returns the raw rows with only a model_id; this resolves the name in SQL so
 	// the API never has to look models up one by one.
 	ListAnnotatorsWithModel(ctx context.Context) ([]ListAnnotatorsWithModelRow, error)
+	ListComparisons(ctx context.Context) ([]Comparison, error)
 	// gold run
 	ListDedicedCells(ctx context.Context, runID int32) ([]ListDedicedCellsRow, error)
 	// the latest version's status per game, for the games list badge.
