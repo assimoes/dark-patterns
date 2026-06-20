@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, ImagePlus, Pencil, Trash2 } from "lucide-react";
+import { Download, FileText, ImagePlus, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Card";
 import {
     BrowsePanel,
@@ -17,6 +17,7 @@ import { RowActions } from "@/components/operations/RowActions";
 import { GameForm } from "@/components/operations/forms/GameForm";
 import { ScrapeForm } from "@/components/operations/forms/ScrapeForm";
 import { ImageUploadForm } from "@/components/operations/forms/ImageUploadForm";
+import { DescriptionReview } from "@/components/operations/DescriptionReview";
 import { useListGames } from "@/hooks/useListGames";
 import { useDeleteGame } from "@/hooks/useEntityMutations";
 import { ApiError } from "@/lib/api/utils";
@@ -27,7 +28,8 @@ type DrawerState =
     | { mode: "new" }
     | { mode: "edit"; game: GameRow }
     | { mode: "scrape"; game: GameRow }
-    | { mode: "images"; game: GameRow };
+    | { mode: "images"; game: GameRow }
+    | { mode: "description"; game: GameRow };
 
 export default function BrowseGamesPage() {
     const { data, isPending, isError, refetch } = useListGames();
@@ -60,14 +62,14 @@ export default function BrowseGamesPage() {
                 }
             >
                 {isPending ? (
-                    <TableSkeleton columns={7} />
+                    <TableSkeleton columns={8} />
                 ) : isError ? (
                     <TableError onRetry={() => refetch()} />
                 ) : games.length === 0 ? (
                     <TableEmpty message="No games registered yet." />
                 ) : (
                     <table className="w-full text-sm">
-                        <TableHead columns={["Game", "Short", "Sources", "Monetization", "Reviews", "Annotated", ""]} />
+                        <TableHead columns={["Game", "Short", "Sources", "Description", "Monetization", "Reviews", "Annotated", ""]} />
                         <tbody>
                             {games.map((g) => (
                                 <tr key={g.id} className="border-b border-slate-50 last:border-0">
@@ -95,12 +97,16 @@ export default function BrowseGamesPage() {
                                             )}
                                         </span>
                                     </td>
+                                    <td className="px-3 py-2.5">
+                                        <DescBadge status={g.descriptionStatus} />
+                                    </td>
                                     <td className="px-3 py-2.5 text-slate-500">{g.monetization}</td>
                                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{fmt(g.reviews)}</td>
                                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{fmt(g.annotated)}</td>
                                     <td className="px-3 py-2.5">
                                         <RowActions
                                             actions={[
+                                                { icon: <FileText className="size-4" />, label: "Description", onClick: () => setDrawer({ mode: "description", game: g }) },
                                                 { icon: <Download className="size-4" />, label: "Scrape", onClick: () => setDrawer({ mode: "scrape", game: g }) },
                                                 { icon: <ImagePlus className="size-4" />, label: "Upload images", onClick: () => setDrawer({ mode: "images", game: g }) },
                                                 { icon: <Pencil className="size-4" />, label: "Edit", onClick: () => setDrawer({ mode: "edit", game: g }) },
@@ -149,6 +155,18 @@ export default function BrowseGamesPage() {
                 {drawer?.mode === "images" ? <ImageUploadForm presetGameId={drawer.game.id} /> : null}
             </Drawer>
 
+            <Drawer
+                open={drawer?.mode === "description"}
+                onClose={() => setDrawer(null)}
+                title="Game description"
+                subtitle={drawer?.mode === "description" ? drawer.game.name : undefined}
+                wide
+            >
+                {drawer?.mode === "description" ? (
+                    <DescriptionReview gameId={drawer.game.id} gameName={drawer.game.name} />
+                ) : null}
+            </Drawer>
+
             <ConfirmDialog
                 open={toDelete !== null}
                 title={`Delete ${toDelete?.name}?`}
@@ -160,5 +178,21 @@ export default function BrowseGamesPage() {
                 onCancel={cancelDelete}
             />
         </>
+    );
+}
+
+// DescBadge shows a game's description state at a glance; a run needs every game approved.
+function DescBadge({ status }: { status: GameRow["descriptionStatus"] }) {
+    const map: Record<string, { label: string; cls: string }> = {
+        none: { label: "none", cls: "border-slate-200 bg-slate-50 text-slate-400" },
+        draft: { label: "review", cls: "border-amber-200 bg-amber-50 text-amber-700" },
+        approved: { label: "approved", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+        invalid: { label: "invalid", cls: "border-rose-200 bg-rose-50 text-rose-700" },
+        error: { label: "error", cls: "border-rose-200 bg-rose-50 text-rose-700" },
+        superseded: { label: "none", cls: "border-slate-200 bg-slate-50 text-slate-400" },
+    };
+    const s = map[status] ?? map.none;
+    return (
+        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${s.cls}`}>{s.label}</span>
     );
 }

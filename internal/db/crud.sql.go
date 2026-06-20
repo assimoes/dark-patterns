@@ -170,6 +170,24 @@ func (q *Queries) GameArtifactTotals(ctx context.Context) ([]GameArtifactTotalsR
 	return items, nil
 }
 
+const getGameDisplay = `-- name: GetGameDisplay :one
+SELECT external_game_id, name, short, monetization, display_color, source_refs FROM game_display WHERE external_game_id = $1
+`
+
+func (q *Queries) GetGameDisplay(ctx context.Context, externalGameID int32) (GameDisplay, error) {
+	row := q.db.QueryRow(ctx, getGameDisplay, externalGameID)
+	var i GameDisplay
+	err := row.Scan(
+		&i.ExternalGameID,
+		&i.Name,
+		&i.Short,
+		&i.Monetization,
+		&i.DisplayColor,
+		&i.SourceRefs,
+	)
+	return i, err
+}
+
 const getGameSourceRef = `-- name: GetGameSourceRef :one
 SELECT COALESCE(source_refs->>$1::text, '')::text AS handle
 FROM game_display

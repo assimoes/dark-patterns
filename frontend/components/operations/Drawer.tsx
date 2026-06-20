@@ -9,12 +9,15 @@ export function Drawer({
     onClose,
     title,
     subtitle,
+    wide,
     children,
 }: {
     open: boolean;
     onClose: () => void;
     title: string;
     subtitle?: string;
+    // wide gives the rich editors (e.g. the description review) more room.
+    wide?: boolean;
     children: ReactNode;
 }) {
     useEffect(() => {
@@ -34,7 +37,10 @@ export function Drawer({
                 className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm"
                 onClick={onClose}
             />
-            <div className="relative flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-slate-200 bg-white shadow-xl">
+            <div
+                className={`relative flex h-full w-full flex-col overflow-y-auto border-l border-slate-200 bg-white shadow-xl ${wide ? "max-w-2xl" : "max-w-md"
+                    }`}
+            >
                 <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
                     <div>
                         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>

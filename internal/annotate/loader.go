@@ -10,11 +10,13 @@ import (
 	"github.com/assimoes/dsr/internal/db"
 )
 
-// RenderCtx is the per-run prompt material. System is pre-rendered; Template is the per-item user message.
+// RenderCtx is the per-run prompt material. System is pre-rendered; Template is the per-item user
+// message. GameContext maps each games external id to its frozen description text, pinned on the run.
 type RenderCtx struct {
-	System   string
-	Template *template.Template
-	Taxonomy string
+	System      string
+	Template    *template.Template
+	Taxonomy    string
+	GameContext map[int32]string
 }
 
 // promptData backs both the system and user templates. taxonomy block feeds simple
@@ -29,6 +31,7 @@ type promptData struct {
 	Language        string
 	VotedUp         bool
 	Nonce           string
+	GameContext     string
 }
 
 // Loader fetches one item and renders it into a model Input. one per modality.
@@ -61,10 +64,11 @@ func (TextLoader) Load(ctx context.Context, q *db.Queries,
 
 	var b strings.Builder
 	if err := rc.Template.Execute(&b, promptData{
-		Taxonomy: rc.Taxonomy,
-		Content:  row.Body,
-		Language: row.Lang,
-		Nonce:    nonce,
+		Taxonomy:    rc.Taxonomy,
+		Content:     row.Body,
+		Language:    row.Lang,
+		Nonce:       nonce,
+		GameContext: rc.GameContext[row.ExternalGameID],
 	}); err != nil {
 		return Input{}, err
 	}
@@ -94,7 +98,7 @@ func (ImageLoader) Load(ctx context.Context, q *db.Queries,
 		return Input{}, err
 	}
 
-	user, err := renderUser(rc, row.OcrText)
+	user, err := renderUser(rc, row.OcrText, rc.GameContext[row.ExternalGameID])
 	if err != nil {
 		return Input{}, err
 	}
@@ -129,7 +133,7 @@ func (MultimodalLoader) Load(ctx context.Context, q *db.Queries,
 		return Input{}, err
 	}
 
-	user, err := renderUser(rc, row.Body)
+	user, err := renderUser(rc, row.Body, rc.GameContext[row.ExternalGameID])
 	if err != nil {
 		return Input{}, err
 	}
@@ -156,7 +160,7 @@ func newNonce() (string, error) {
 
 // renderUser runs the per-item user template with a fresh nonce. shared by the image and multimodal
 // loaders so each Load stays short. (textLoader renders its own, since it also passes language/voted_up.)
-func renderUser(rc RenderCtx, content string) (string, error) {
+func renderUser(rc RenderCtx, content, gameContext string) (string, error) {
 	nonce, err := newNonce()
 	if err != nil {
 		return "", err
@@ -164,9 +168,10 @@ func renderUser(rc RenderCtx, content string) (string, error) {
 
 	var b strings.Builder
 	if err := rc.Template.Execute(&b, promptData{
-		Taxonomy: rc.Taxonomy,
-		Content:  content,
-		Nonce:    nonce,
+		Taxonomy:    rc.Taxonomy,
+		Content:     content,
+		Nonce:       nonce,
+		GameContext: gameContext,
 	}); err != nil {
 		return "", err
 	}

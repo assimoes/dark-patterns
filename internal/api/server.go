@@ -77,6 +77,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("DELETE /api/prompts/{id}", s.deletePrompt)
 	mux.HandleFunc("PUT /api/annotators/{id}", s.updateAnnotator)
 	mux.HandleFunc("DELETE /api/annotators/{id}", s.deleteAnnotator)
+	mux.HandleFunc("GET /api/games/{id}/descriptions", s.listGameDescriptions)
+	mux.HandleFunc("POST /api/games/{id}/research", s.researchGameDescription)
+	mux.HandleFunc("GET /api/game-descriptions/{id}", s.getGameDescription)
+	mux.HandleFunc("PUT /api/game-descriptions/{id}", s.updateGameDescription)
+	mux.HandleFunc("POST /api/game-descriptions/{id}/approve", s.approveGameDescription)
+
 	mux.HandleFunc("GET /api/populations/{id}/impact", s.populationImpact)
 	mux.HandleFunc("DELETE /api/populations/{id}", s.deletePopulation)
 	mux.HandleFunc("GET /api/runs/{id}/impact", s.runImpact)
