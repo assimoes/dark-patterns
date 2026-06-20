@@ -15,6 +15,7 @@ import (
 	"github.com/assimoes/dsr/internal/annotate"
 	"github.com/assimoes/dsr/internal/api/dto"
 	"github.com/assimoes/dsr/internal/db"
+	"github.com/assimoes/dsr/internal/research"
 	"github.com/assimoes/dsr/internal/run"
 	"github.com/assimoes/dsr/internal/scrape"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -70,6 +71,12 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "register game", err)
 		return
+	}
+
+	// kick off the neutral-description research in the background. a failure here doesnt fail the create;
+	// the operator can re-research from the console.
+	if err := research.Enqueue(r.Context(), s.riverClient, row.ExternalGameID, name, req.DisambiguationHint); err != nil {
+		s.logger.Warn("enqueue game research", "game", row.ExternalGameID, "err", err)
 	}
 
 	s.writeJSON(w, http.StatusCreated, dto.Game{
@@ -311,6 +318,33 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	if err := run.Validate(ctx, s.q, req.AnnotatorIDs, req.PopulationID, req.PromptID, taxVersion); err != nil {
 		s.writeError(w, http.StatusBadRequest, err.Error(), nil)
 		return
+	}
+
+	// the description gate, but only when the chosen prompt actually injects game context. a plain prompt
+	// (e.g. the no-context arm of an A/B comparison) needs no descriptions.
+	prompt, err := s.q.GetPrompt(ctx, req.PromptID)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "prompt not found", err)
+		return
+	}
+
+	if runType == "llm_panel" && annotate.UsesGameContext(prompt.Template) {
+		missing, err := s.q.GamesMissingApprovedDescription(ctx, req.PopulationID)
+		if err != nil {
+			s.writeError(w, http.StatusInternalServerError, "check game descriptions", err)
+			return
+		}
+		if len(missing) > 0 {
+			games := make([]map[string]any, len(missing))
+			for i, m := range missing {
+				games[i] = map[string]any{"id": m.ExternalGameID, "name": m.Name}
+			}
+			s.writeJSON(w, http.StatusConflict, map[string]any{
+				"error":   fmt.Sprintf("%d game(s) in this population have no approved description", len(missing)),
+				"missing": games,
+			})
+			return
+		}
 	}
 
 	var temp pgtype.Numeric

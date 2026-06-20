@@ -128,11 +128,23 @@ func (w *AnnotateWorker) loadRunContext(ctx context.Context, runID int32) (*runC
 		system = sb.String()
 	}
 
+	// the descriptions pinned on the run, keyed by game, so each item injects the right one.
+	descs, err := q.ListRunGameDescriptions(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+
+	gameContext := make(map[int32]string, len(descs))
+	for _, d := range descs {
+		gameContext[d.ExternalGameID] = d.RenderedText
+	}
+
 	rcx := &runContext{
 		rc: RenderCtx{
-			System:   system,
-			Template: userTmpl,
-			Taxonomy: tax.Block,
+			System:      system,
+			Template:    userTmpl,
+			Taxonomy:    tax.Block,
+			GameContext: gameContext,
 		},
 		tax: tax,
 	}

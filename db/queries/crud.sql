@@ -16,6 +16,9 @@ SELECT COALESCE(source_refs->>sqlc.arg(source)::text, '')::text AS handle
 FROM game_display
 WHERE external_game_id = sqlc.arg(external_game_id);
 
+-- name: GetGameDisplay :one
+SELECT * FROM game_display WHERE external_game_id = $1;
+
 -- name: CountArtifactsForGame :one
 SELECT count(*)::int FROM artifacts WHERE external_game_id = $1;
 

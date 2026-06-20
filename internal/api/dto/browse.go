@@ -88,17 +88,18 @@ func NewRunDetail(run db.Run, population string, panel []Member, hasSample bool)
 	}
 }
 
-func NewGameSummary(d db.GameDisplay, reviews, annotated, artifacts int) GameSummary {
+func NewGameSummary(d db.GameDisplay, reviews, annotated, artifacts int, descriptionStatus string) GameSummary {
 	return GameSummary{
-		ID:           GameID(d.ExternalGameID),
-		Name:         d.Name,
-		Short:        d.Short,
-		Monetization: d.Monetization,
-		Color:        d.DisplayColor,
-		Reviews:      reviews,
-		Annotated:    annotated,
-		Artifacts:    artifacts,
-		SourceRefs:   DecodeRefs(d.SourceRefs),
+		ID:                GameID(d.ExternalGameID),
+		Name:              d.Name,
+		Short:             d.Short,
+		Monetization:      d.Monetization,
+		Color:             d.DisplayColor,
+		Reviews:           reviews,
+		Annotated:         annotated,
+		Artifacts:         artifacts,
+		SourceRefs:        DecodeRefs(d.SourceRefs),
+		DescriptionStatus: descriptionStatus,
 	}
 }
 
@@ -184,13 +185,14 @@ type RunDetail struct {
 
 // GameSummary is one game with its display metadata and review progress, the row a games grid renders.
 type GameSummary struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	Short        string            `json:"short"`
-	Monetization string            `json:"monetization"`
-	Color        string            `json:"color"`
-	Reviews      int               `json:"reviews"`
-	Annotated    int               `json:"annotated"`
-	Artifacts    int               `json:"artifacts"`
-	SourceRefs   map[string]string `json:"sourceRefs"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	Short             string            `json:"short"`
+	Monetization      string            `json:"monetization"`
+	Color             string            `json:"color"`
+	Reviews           int               `json:"reviews"`
+	Annotated         int               `json:"annotated"`
+	Artifacts         int               `json:"artifacts"`
+	SourceRefs        map[string]string `json:"sourceRefs"`
+	DescriptionStatus string            `json:"descriptionStatus"`
 }

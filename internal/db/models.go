@@ -81,6 +81,23 @@ type Artifact struct {
 	ExternalGameID int32              `json:"external_game_id"`
 }
 
+type GameDescription struct {
+	ID             int32              `json:"id"`
+	ExternalGameID int32              `json:"external_game_id"`
+	Version        int32              `json:"version"`
+	Status         string             `json:"status"`
+	Profile        json.RawMessage    `json:"profile"`
+	RenderedText   string             `json:"rendered_text"`
+	ResearchModel  string             `json:"research_model"`
+	Sources        json.RawMessage    `json:"sources"`
+	ValenceFlags   json.RawMessage    `json:"valence_flags"`
+	Error          string             `json:"error"`
+	ContentHash    []byte             `json:"content_hash"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ApprovedBy     *int32             `json:"approved_by"`
+	ApprovedAt     pgtype.Timestamptz `json:"approved_at"`
+}
+
 type GameDisplay struct {
 	ExternalGameID int32           `json:"external_game_id"`
 	Name           string          `json:"name"`
@@ -158,6 +175,12 @@ type RunAnnotator struct {
 	ModelSlug     string          `json:"model_slug"`
 	ClientVersion string          `json:"client_version"`
 	Sampling      json.RawMessage `json:"sampling"`
+}
+
+type RunGameDescription struct {
+	RunID             int32 `json:"run_id"`
+	ExternalGameID    int32 `json:"external_game_id"`
+	GameDescriptionID int32 `json:"game_description_id"`
 }
 
 type ScrapeCursor struct {

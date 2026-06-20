@@ -1,3 +1,5 @@
+import type { DescriptionStatus } from "./description";
+
 // GET /api/populations
 export type PopulationSummary = {
     id: number;
@@ -95,4 +97,5 @@ export type GameRow = {
     annotated: number;
     artifacts: number;
     sourceRefs: Record<string, string>;
+    descriptionStatus: DescriptionStatus;
 };

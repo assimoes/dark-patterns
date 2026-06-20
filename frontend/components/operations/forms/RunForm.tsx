@@ -31,12 +31,7 @@ export function RunForm({ presetPopulationId, onDone }: { presetPopulationId?: s
         createRun.mutate(body, { onSuccess: onDone });
     };
 
-    const errorMessage =
-        createRun.error instanceof ApiError
-            ? createRun.error.message || "Request failed."
-            : createRun.isError
-                ? "Could not create the run."
-                : null;
+    const errorMessage = runErrorMessage(createRun.error, createRun.isError);
 
     return (
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -66,4 +61,21 @@ export function RunForm({ presetPopulationId, onDone }: { presetPopulationId?: s
             <SubmitButton pending={createRun.isPending} idleLabel="Create run" pendingLabel="Creating…" />
         </form>
     );
+}
+
+// the description gate returns a structured 409 ({error, missing:[{id,name}]}); surface it readably.
+function runErrorMessage(error: unknown, isError: boolean): string | null {
+    if (error instanceof ApiError) {
+        try {
+            const body = JSON.parse(error.message) as { error?: string; missing?: { name: string }[] };
+            if (body.missing?.length) {
+                return `${body.error}: ${body.missing.map((m) => m.name).join(", ")}. Approve their descriptions first.`;
+            }
+            if (body.error) return body.error;
+        } catch {
+            // not json; fall through to the raw message
+        }
+        return error.message || "Request failed.";
+    }
+    return isError ? "Could not create the run." : null;
 }

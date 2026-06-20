@@ -158,10 +158,25 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 		artifacts[a.ExternalGameID] = int(a.Artifacts)
 	}
 
+	stateRows, err := s.q.ListGameDescriptionStates(ctx)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "load description states", err)
+		return
+	}
+
+	descStatus := make(map[int32]string, len(stateRows))
+	for _, st := range stateRows {
+		descStatus[st.ExternalGameID] = st.Status
+	}
+
 	out := make([]dto.GameSummary, 0, len(displays))
 	for _, d := range displays {
 		st := stats[d.ExternalGameID]
-		out = append(out, dto.NewGameSummary(d, st.reviews, st.annotated, artifacts[d.ExternalGameID]))
+		status := descStatus[d.ExternalGameID]
+		if status == "" {
+			status = "none"
+		}
+		out = append(out, dto.NewGameSummary(d, st.reviews, st.annotated, artifacts[d.ExternalGameID], status))
 	}
 
 	s.writeJSON(w, http.StatusOK, out)

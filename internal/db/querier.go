@@ -10,6 +10,8 @@ import (
 
 type Querier interface {
 	AddIndividual(ctx context.Context, arg AddIndividualParams) error
+	// freeze a draft as the approved version. blocked unless it is a draft with no unresolved valence flags.
+	ApproveDescription(ctx context.Context, arg ApproveDescriptionParams) (GameDescription, error)
 	// the candidate pool for a sample: every completed review in the population, tagged with its stratum.
 	// a review is classified by the panels per-pattern votes: flagged_majority if any pattern reached a
 	// majority Present (n_present*2 > n_total), else flagged_split if any pattern had Present votes without
@@ -52,8 +54,12 @@ type Querier interface {
 	// artifacts per game, the delete guard: a game with any artifact is frozen.
 	GameArtifactTotals(ctx context.Context) ([]GameArtifactTotalsRow, error)
 	GameReviewTotals(ctx context.Context) ([]GameReviewTotalsRow, error)
+	// the run gate: distinct games present in a population that have no approved description yet.
+	GamesMissingApprovedDescription(ctx context.Context, populationID int32) ([]GamesMissingApprovedDescriptionRow, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
+	GetGameDescription(ctx context.Context, id int32) (GameDescription, error)
+	GetGameDisplay(ctx context.Context, externalGameID int32) (GameDisplay, error)
 	// the scrape handle a game registered for one source (e.g. its subreddit for 'reddit'). empty when the
 	// game has no binding for that source.
 	GetGameSourceRef(ctx context.Context, arg GetGameSourceRefParams) (string, error)
@@ -62,6 +68,7 @@ type Querier interface {
 	GetGoldRunForPopulation(ctx context.Context, populationID int32) (int32, error)
 	GetImageForIndividual(ctx context.Context, id int64) (GetImageForIndividualRow, error)
 	GetLLMAnnotatorByModel(ctx context.Context, modelID *int32) (Annotator, error)
+	GetLatestApprovedDescription(ctx context.Context, externalGameID int32) (GameDescription, error)
 	GetLatestPrompt(ctx context.Context, name string) (Prompt, error)
 	// the most recent sample drawn for a panel run, to reopen its queue.
 	GetLatestSampleForRun(ctx context.Context, panelRunID int32) (AdjudicationSample, error)
@@ -89,13 +96,15 @@ type Querier interface {
 	GetReviewText(ctx context.Context, individualID int64) (string, error)
 	GetRun(ctx context.Context, id int32) (Run, error)
 	GetScrapeCursor(ctx context.Context, arg GetScrapeCursorParams) (string, error)
-	// text-specific query. body and lang only
+	// text-specific query. body, lang, and the game it belongs to (for description context).
 	GetTextReviewForIndividual(ctx context.Context, id int64) (GetTextReviewForIndividualRow, error)
 	// the sample header. params holds the per-stratum target Ns; seed is stored so the draw is auditable.
 	InsertAdjudicationSample(ctx context.Context, arg InsertAdjudicationSampleParams) (int64, error)
 	// one frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
 	InsertAdjudicationSampleItem(ctx context.Context, arg InsertAdjudicationSampleItemParams) error
 	InsertAnnotationPattern(ctx context.Context, arg InsertAnnotationPatternParams) error
+	// store a researched draft (or an invalid/error draft the reviewer must fix).
+	InsertGameDescription(ctx context.Context, arg InsertGameDescriptionParams) (GameDescription, error)
 	// register a game so it appears on the dashboard list and can be scraped. external_game_id is left to
 	// the sequence (a high internal id), source_refs holds the per-source scrape handles.
 	InsertGameDisplay(ctx context.Context, arg InsertGameDisplayParams) (GameDisplay, error)
@@ -109,6 +118,10 @@ type Querier interface {
 	ListAnnotatorsWithModel(ctx context.Context) ([]ListAnnotatorsWithModelRow, error)
 	// gold run
 	ListDedicedCells(ctx context.Context, runID int32) ([]ListDedicedCellsRow, error)
+	// the latest version's status per game, for the games list badge.
+	ListGameDescriptionStates(ctx context.Context) ([]ListGameDescriptionStatesRow, error)
+	// newest first; the review console lists the version history of one game.
+	ListGameDescriptionsForGame(ctx context.Context, externalGameID int32) ([]GameDescription, error)
 	// the curated games with their presentation metadata and per-source handles. external_game_id is the
 	// stable internal id the frontend uses as `gameId`; source_refs maps each source to its scrape handle.
 	ListGameDisplays(ctx context.Context) ([]GameDisplay, error)
@@ -143,6 +156,8 @@ type Querier interface {
 	ListReviewDetections(ctx context.Context, arg ListReviewDetectionsParams) ([]ListReviewDetectionsRow, error)
 	// read the frozen panel.
 	ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error)
+	// the pinned descriptions for a run: game id, version, content hash, and the text to inject.
+	ListRunGameDescriptions(ctx context.Context, runID int32) ([]ListRunGameDescriptionsRow, error)
 	ListRunIDsByPopulation(ctx context.Context, populationID int32) ([]int32, error)
 	// every run with what an operator needs to recognise and pick it: its type, the population modality as a
 	// label, the foreign keys, the taxonomy version, when it ran, and the size of the panel it pinned.
@@ -166,10 +181,14 @@ type Querier interface {
 	// model at the populations slice size, not a runaway sum across runs.
 	ModelStatsForGamePopulation(ctx context.Context, arg ModelStatsForGamePopulationParams) ([]ModelStatsForGamePopulationRow, error)
 	ModelStatsForGameRun(ctx context.Context, arg ModelStatsForGameRunParams) ([]ModelStatsForGameRunRow, error)
+	// the next version number for a games description chain (1 when it has none).
+	NextDescriptionVersion(ctx context.Context, externalGameID int32) (int32, error)
 	// the panel that worked a population: every annotator frozen onto any of the populations runs, with
 	// its kind (llm | human) and a display label (the model name for an llm, the annotators own label
 	// for a human). run_annotators is the single source of "who annotates this run".
 	PanelForPopulation(ctx context.Context, populationID int32) ([]PanelForPopulationRow, error)
+	// freeze the approved description per game in the runs population onto the run.
+	PinRunGameDescriptions(ctx context.Context, arg PinRunGameDescriptionsParams) error
 	// the blast radius of deleting a population: its individuals, the runs over it, and those runs
 	// annotations and adjudication samples.
 	PopulationImpact(ctx context.Context, populationID int32) (PopulationImpactRow, error)
@@ -192,7 +211,12 @@ type Querier interface {
 	SetRunConfigDigest(ctx context.Context, arg SetRunConfigDigestParams) error
 	// freeze one panel member
 	SnapshotRunAnnotator(ctx context.Context, arg SnapshotRunAnnotatorParams) error
+	// demote the current approved description for a game (called before approving a newer version).
+	SupersedePriorApproved(ctx context.Context, externalGameID int32) error
 	UpdateAnnotatorLabel(ctx context.Context, arg UpdateAnnotatorLabelParams) error
+	// edit a draft in place: the reviewers fixes to the structured profile and the rendered text, plus the
+	// re-run valence flags. only drafts are editable.
+	UpdateDraftDescription(ctx context.Context, arg UpdateDraftDescriptionParams) (GameDescription, error)
 	// edit a games display fields and its per-source handles.
 	UpdateGameDisplay(ctx context.Context, arg UpdateGameDisplayParams) (GameDisplay, error)
 	UpdatePrompt(ctx context.Context, arg UpdatePromptParams) error

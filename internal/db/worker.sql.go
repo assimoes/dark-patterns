@@ -10,7 +10,7 @@ import (
 )
 
 const getImageForIndividual = `-- name: GetImageForIndividual :one
-SELECT a.id AS artifact_id, img.image_uri, img.mime_type, COALESCE(img.ocr_text, '')::text AS ocr_text
+SELECT a.id AS artifact_id, a.external_game_id, img.image_uri, img.mime_type, COALESCE(img.ocr_text, '')::text AS ocr_text
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN image_details img ON img.artifact_id = a.id
@@ -18,10 +18,11 @@ WHERE i.id = $1
 `
 
 type GetImageForIndividualRow struct {
-	ArtifactID int64   `json:"artifact_id"`
-	ImageUri   string  `json:"image_uri"`
-	MimeType   *string `json:"mime_type"`
-	OcrText    string  `json:"ocr_text"`
+	ArtifactID     int64   `json:"artifact_id"`
+	ExternalGameID int32   `json:"external_game_id"`
+	ImageUri       string  `json:"image_uri"`
+	MimeType       *string `json:"mime_type"`
+	OcrText        string  `json:"ocr_text"`
 }
 
 func (q *Queries) GetImageForIndividual(ctx context.Context, id int64) (GetImageForIndividualRow, error) {
@@ -29,6 +30,7 @@ func (q *Queries) GetImageForIndividual(ctx context.Context, id int64) (GetImage
 	var i GetImageForIndividualRow
 	err := row.Scan(
 		&i.ArtifactID,
+		&i.ExternalGameID,
 		&i.ImageUri,
 		&i.MimeType,
 		&i.OcrText,
@@ -37,7 +39,7 @@ func (q *Queries) GetImageForIndividual(ctx context.Context, id int64) (GetImage
 }
 
 const getMultimodalForIndividual = `-- name: GetMultimodalForIndividual :one
-SELECT a.id AS artifact_id, td.body, img.image_uri, img.mime_type
+SELECT a.id AS artifact_id, a.external_game_id, td.body, img.image_uri, img.mime_type
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN text_review_details td ON td.artifact_id = a.id
@@ -46,10 +48,11 @@ WHERE i.id = $1
 `
 
 type GetMultimodalForIndividualRow struct {
-	ArtifactID int64   `json:"artifact_id"`
-	Body       string  `json:"body"`
-	ImageUri   string  `json:"image_uri"`
-	MimeType   *string `json:"mime_type"`
+	ArtifactID     int64   `json:"artifact_id"`
+	ExternalGameID int32   `json:"external_game_id"`
+	Body           string  `json:"body"`
+	ImageUri       string  `json:"image_uri"`
+	MimeType       *string `json:"mime_type"`
 }
 
 // a multimodal item carries both channels: a text body and an image. inner-joining both detail tables
@@ -59,6 +62,7 @@ func (q *Queries) GetMultimodalForIndividual(ctx context.Context, id int64) (Get
 	var i GetMultimodalForIndividualRow
 	err := row.Scan(
 		&i.ArtifactID,
+		&i.ExternalGameID,
 		&i.Body,
 		&i.ImageUri,
 		&i.MimeType,
@@ -67,7 +71,7 @@ func (q *Queries) GetMultimodalForIndividual(ctx context.Context, id int64) (Get
 }
 
 const getTextReviewForIndividual = `-- name: GetTextReviewForIndividual :one
-SELECT a.id AS artifact_id, td.body, td.lang
+SELECT a.id AS artifact_id, a.external_game_id, td.body, td.lang
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN text_review_details td on td.artifact_id = a.id
@@ -75,16 +79,22 @@ WHERE i.id = $1
 `
 
 type GetTextReviewForIndividualRow struct {
-	ArtifactID int64  `json:"artifact_id"`
-	Body       string `json:"body"`
-	Lang       string `json:"lang"`
+	ArtifactID     int64  `json:"artifact_id"`
+	ExternalGameID int32  `json:"external_game_id"`
+	Body           string `json:"body"`
+	Lang           string `json:"lang"`
 }
 
-// text-specific query. body and lang only
+// text-specific query. body, lang, and the game it belongs to (for description context).
 func (q *Queries) GetTextReviewForIndividual(ctx context.Context, id int64) (GetTextReviewForIndividualRow, error) {
 	row := q.db.QueryRow(ctx, getTextReviewForIndividual, id)
 	var i GetTextReviewForIndividualRow
-	err := row.Scan(&i.ArtifactID, &i.Body, &i.Lang)
+	err := row.Scan(
+		&i.ArtifactID,
+		&i.ExternalGameID,
+		&i.Body,
+		&i.Lang,
+	)
 	return i, err
 }
 

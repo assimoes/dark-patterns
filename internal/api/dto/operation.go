@@ -102,11 +102,12 @@ type AnnotatorResponse struct {
 // AddGameRequest is the body of POST /api/games. the id is auto-assigned; source_refs holds the
 // per-source scrape handles, e.g. {"steam":"570","reddit":"r/EVE"}.
 type AddGameRequest struct {
-	Name         string            `json:"name"`
-	Short        string            `json:"short"`
-	Monetization string            `json:"monetization"`
-	Color        string            `json:"color"`
-	SourceRefs   map[string]string `json:"source_refs"`
+	Name               string            `json:"name"`
+	Short              string            `json:"short"`
+	Monetization       string            `json:"monetization"`
+	Color              string            `json:"color"`
+	SourceRefs         map[string]string `json:"source_refs"`
+	DisambiguationHint string            `json:"disambiguation_hint"`
 }
 
 // UpdateGameRequest is the body of PUT /api/games/{id}, the display fields and source handles an edit

@@ -1,6 +1,6 @@
 -- name: GetTextReviewForIndividual :one
--- text-specific query. body and lang only
-SELECT a.id AS artifact_id, td.body, td.lang
+-- text-specific query. body, lang, and the game it belongs to (for description context).
+SELECT a.id AS artifact_id, a.external_game_id, td.body, td.lang
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN text_review_details td on td.artifact_id = a.id
@@ -25,7 +25,7 @@ WHERE r.id = sqlc.arg(run_id)
 ORDER BY i.id;
 
 -- name: GetImageForIndividual :one
-SELECT a.id AS artifact_id, img.image_uri, img.mime_type, COALESCE(img.ocr_text, '')::text AS ocr_text
+SELECT a.id AS artifact_id, a.external_game_id, img.image_uri, img.mime_type, COALESCE(img.ocr_text, '')::text AS ocr_text
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN image_details img ON img.artifact_id = a.id
@@ -34,7 +34,7 @@ WHERE i.id = $1;
 -- name: GetMultimodalForIndividual :one
 -- a multimodal item carries both channels: a text body and an image. inner-joining both detail tables
 -- means it only returns artifacts that actually have both, which is exactly the multimodal case.
-SELECT a.id AS artifact_id, td.body, img.image_uri, img.mime_type
+SELECT a.id AS artifact_id, a.external_game_id, td.body, img.image_uri, img.mime_type
 FROM individuals i
 JOIN artifacts a ON a.id = i.artifact_id
 JOIN text_review_details td ON td.artifact_id = a.id

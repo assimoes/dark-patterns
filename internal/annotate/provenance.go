@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/assimoes/dsr/internal/db"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -79,14 +80,47 @@ func SnapshotPanel(ctx context.Context, q *db.Queries, run db.Run,
 		slugs = append(slugs, id.Model)
 	}
 
+	// only a prompt that injects game context depends on the descriptions. for a no-context run we pin
+	// nothing and the digest carries no descriptions, so it stays independent of them. that keeps an
+	// A/B pair (same population, context vs no-context prompt) clean.
+	var descLines []string
+	if UsesGameContext(prompt.Template) {
+		// freeze the approved description per game in the runs population, so the run records exactly which
+		// description text each game contributed and the digest covers the whole set.
+		if err := q.PinRunGameDescriptions(ctx, db.PinRunGameDescriptionsParams{
+			RunID:        run.ID,
+			PopulationID: run.PopulationID,
+		}); err != nil {
+			return err
+		}
+
+		descs, err := q.ListRunGameDescriptions(ctx, run.ID)
+		if err != nil {
+			return err
+		}
+
+		descLines = make([]string, 0, len(descs))
+		for _, d := range descs {
+			descLines = append(descLines, fmt.Sprintf("%d:%d:%s", d.ExternalGameID, d.Version, hex.EncodeToString(d.ContentHash)))
+		}
+	}
+
 	return q.SetRunConfigDigest(ctx, db.SetRunConfigDigestParams{
 		ID:           run.ID,
-		ConfigDigest: ptrOrNil(configDigest(prompt, tax, run, slugs)),
+		ConfigDigest: ptrOrNil(configDigest(prompt, tax, run, slugs, descLines)),
 	})
 }
 
-func configDigest(prompt db.Prompt, tax Taxonomy, run db.Run, slugs []string) string {
+// UsesGameContext reports whether a prompt template injects the per-game description (the GameContext
+// field). it gates the description requirement and the run's description pinning, so a plain prompt never
+// pulls in descriptions.
+func UsesGameContext(template string) bool {
+	return strings.Contains(template, "GameContext")
+}
+
+func configDigest(prompt db.Prompt, tax Taxonomy, run db.Run, slugs, descriptions []string) string {
 	sort.Strings(slugs)
+	sort.Strings(descriptions)
 	system := ""
 
 	if prompt.SystemPrompt != nil {
@@ -96,8 +130,8 @@ func configDigest(prompt db.Prompt, tax Taxonomy, run db.Run, slugs []string) st
 	h := sha256.New()
 	fmt.Fprintf(
 		h,
-		"system=%s\ntemplate=%s\ntax_version=%d\ntemp=%v\nmodels=%v\n",
-		system, prompt.Template, tax.Version, numericToFloat(run.Temperature), slugs,
+		"system=%s\ntemplate=%s\ntax_version=%d\ntemp=%v\nmodels=%v\ndescriptions=%v\n",
+		system, prompt.Template, tax.Version, numericToFloat(run.Temperature), slugs, descriptions,
 	)
 
 	return hex.EncodeToString(h.Sum(nil))
