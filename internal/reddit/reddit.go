@@ -12,11 +12,13 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-const maxBackoff = 60 * time.Second
+const maxBackoff = 120 * time.Second
 
 // Client reads subreddit listings from reddit's Atom feeds.
 type Client struct {
@@ -24,6 +26,10 @@ type Client struct {
 	userAgent  string
 	maxRetries int
 	logger     *slog.Logger
+
+	mu        sync.Mutex
+	remaining float64
+	resetAt   time.Time
 }
 
 // Options tweaks a Client at construction, pass them to New.
@@ -170,47 +176,39 @@ func (c *Client) Fetch(ctx context.Context, opts FetchOpts, cursor string) (post
 	return posts, next, nil
 }
 
-// FetchImage downloads an image and returns its bytes and mime type, so an image post can be inlined
-// the same way uploads are stored.
-func (c *Client) FetchImage(ctx context.Context, imageURL string) (data []byte, mime string, err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
-	if err != nil {
-		return nil, "", err
-	}
-	req.Header.Set("User-Agent", c.userAgent)
-
-	resp, err := c.do(ctx, req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("fetch image: status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, "", err
-	}
-	return body, resp.Header.Get("Content-Type"), nil
-}
-
-// do runs the request and retries on 429, honouring Retry-After. reddit rate-limits unauthenticated
-// feeds, so a background pull backs off rather than failing the page.
+// do runs the request and retries on 429. the feed host (www.reddit.com) publishes its remaining
+// budget and reset, so we wait it out before spending the last request; image CDN hosts (i.redd.it)
+// are a separate budget and skip this. Retry-After and the reset header drive the 429 fallback.
 func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	feed := req.URL.Host == "www.reddit.com" || req.URL.Host == "reddit.com"
+
 	for try := 0; ; try++ {
+		if feed {
+			if err := c.waitForBudget(ctx); err != nil {
+				return nil, err
+			}
+		}
+
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return nil, err
 		}
+		if feed {
+			c.noteBudget(resp.Header)
+		}
+
 		if resp.StatusCode != http.StatusTooManyRequests || try == c.maxRetries {
 			return resp, nil
 		}
 
 		wait := time.Duration(try+1) * 5 * time.Second
+		if reset := resp.Header.Get("x-ratelimit-reset"); reset != "" {
+			if secs, e := strconv.Atoi(reset); e == nil {
+				wait = time.Duration(secs+1) * time.Second
+			}
+		}
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
-			if secs, e := time.ParseDuration(ra + "s"); e == nil {
+			if secs, e := time.ParseDuration(ra + "s"); e == nil && secs > 0 {
 				wait = secs
 			}
 		}
@@ -220,11 +218,51 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 		resp.Body.Close()
 		c.logger.Info("reddit rate limited, backing off", "wait", wait)
 
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(wait):
+		if err := sleep(ctx, wait); err != nil {
+			return nil, err
 		}
+	}
+}
+
+// waitForBudget sleeps until the feed budget resets when the last response left none.
+func (c *Client) waitForBudget(ctx context.Context) error {
+	c.mu.Lock()
+	wait := time.Duration(0)
+	if c.remaining < 1 && time.Now().Before(c.resetAt) {
+		wait = time.Until(c.resetAt)
+	}
+	c.mu.Unlock()
+
+	if wait <= 0 {
+		return nil
+	}
+	c.logger.Info("reddit feed budget spent, waiting for reset", "wait", wait)
+	return sleep(ctx, wait)
+}
+
+// noteBudget records the remaining feed budget and reset from reddit's headers.
+func (c *Client) noteBudget(h http.Header) {
+	rem := h.Get("x-ratelimit-remaining")
+	if rem == "" {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if f, err := strconv.ParseFloat(rem, 64); err == nil {
+		c.remaining = f
+	}
+	if secs, err := strconv.Atoi(h.Get("x-ratelimit-reset")); err == nil {
+		c.resetAt = time.Now().Add(time.Duration(secs+1) * time.Second)
+	}
+}
+
+func sleep(ctx context.Context, d time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(d):
+		return nil
 	}
 }
 

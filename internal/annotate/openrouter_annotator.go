@@ -3,6 +3,7 @@ package annotate
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -105,7 +106,11 @@ func (a *OpenRouterAnnotator) Annotate(ctx context.Context, in Input) (Output, e
 	if len(in.Images) > 0 {
 		parts := []oraContentPart{{Type: "text", Text: in.User}}
 		for _, img := range in.Images {
-			parts = append(parts, oraContentPart{Type: "image_url", ImageURL: &oraImageURL{URL: img.URL}})
+			url, err := a.resolveImage(ctx, img.URL)
+			if err != nil {
+				return Output{}, err
+			}
+			parts = append(parts, oraContentPart{Type: "image_url", ImageURL: &oraImageURL{URL: url}})
 		}
 		userContent = parts
 	}
@@ -145,6 +150,42 @@ func (a *OpenRouterAnnotator) Annotate(ctx context.Context, in Input) (Output, e
 		Raw:  json.RawMessage(raw),
 		Meta: meta,
 	}, nil
+}
+
+// resolveImage returns an image url ready to send. a data: uri goes as-is; a remote http(s) url is
+// downloaded and inlined so the panel does not depend on the image host serving openrouter.
+func (a *OpenRouterAnnotator) resolveImage(ctx context.Context, url string) (string, error) {
+	if strings.HasPrefix(url, "data:") {
+		return url, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "go:dsr-ingest:0.1")
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fetch image %s: status %d", url, resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	mime := resp.Header.Get("Content-Type")
+	if mime == "" {
+		mime = http.DetectContentType(data)
+	}
+
+	return fmt.Sprintf("data:%s;base64,%s", mime, base64.StdEncoding.EncodeToString(data)), nil
 }
 
 func (a *OpenRouterAnnotator) call(ctx context.Context, payload []byte) (oraResponse, ResponseMeta, error) {
