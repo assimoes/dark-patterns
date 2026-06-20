@@ -353,32 +353,28 @@ func (q *Queries) InsertAdjudicationSampleItem(ctx context.Context, arg InsertAd
 }
 
 const insertGameDisplay = `-- name: InsertGameDisplay :one
-INSERT INTO game_display (external_game_id, name, short, monetization, display_color)
+INSERT INTO game_display (name, short, monetization, display_color, source_refs)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (external_game_id) DO UPDATE
-    SET name          = EXCLUDED.name,
-        short         = EXCLUDED.short,
-        monetization  = EXCLUDED.monetization,
-        display_color = EXCLUDED.display_color
-RETURNING external_game_id, name, short, monetization, display_color
+RETURNING external_game_id, name, short, monetization, display_color, source_refs
 `
 
 type InsertGameDisplayParams struct {
-	ExternalGameID int32  `json:"external_game_id"`
-	Name           string `json:"name"`
-	Short          string `json:"short"`
-	Monetization   string `json:"monetization"`
-	DisplayColor   string `json:"display_color"`
+	Name         string          `json:"name"`
+	Short        string          `json:"short"`
+	Monetization string          `json:"monetization"`
+	DisplayColor string          `json:"display_color"`
+	SourceRefs   json.RawMessage `json:"source_refs"`
 }
 
-// register a game so it appears on the dashboard list and can be scraped.
+// register a game so it appears on the dashboard list and can be scraped. external_game_id is left to
+// the sequence (a high internal id), source_refs holds the per-source scrape handles.
 func (q *Queries) InsertGameDisplay(ctx context.Context, arg InsertGameDisplayParams) (GameDisplay, error) {
 	row := q.db.QueryRow(ctx, insertGameDisplay,
-		arg.ExternalGameID,
 		arg.Name,
 		arg.Short,
 		arg.Monetization,
 		arg.DisplayColor,
+		arg.SourceRefs,
 	)
 	var i GameDisplay
 	err := row.Scan(
@@ -387,6 +383,7 @@ func (q *Queries) InsertGameDisplay(ctx context.Context, arg InsertGameDisplayPa
 		&i.Short,
 		&i.Monetization,
 		&i.DisplayColor,
+		&i.SourceRefs,
 	)
 	return i, err
 }
@@ -396,17 +393,20 @@ SELECT
     an.id,
     an.kind,
     an.label,
-    m.name AS model
+    m.name AS model,
+    (SELECT count(*) FROM run_annotators ra WHERE ra.annotator_id = an.id)::int +
+    (SELECT count(*) FROM annotations a WHERE a.annotator_id = an.id)::int AS ref_count
 FROM annotators an
 LEFT JOIN models m ON m.id = an.model_id
 ORDER BY an.kind, an.label
 `
 
 type ListAnnotatorsWithModelRow struct {
-	ID    int32   `json:"id"`
-	Kind  string  `json:"kind"`
-	Label string  `json:"label"`
-	Model *string `json:"model"`
+	ID       int32   `json:"id"`
+	Kind     string  `json:"kind"`
+	Label    string  `json:"label"`
+	Model    *string `json:"model"`
+	RefCount int32   `json:"ref_count"`
 }
 
 // every annotator as a form option, carrying the display model name for llm annotators (NULL for
@@ -426,6 +426,7 @@ func (q *Queries) ListAnnotatorsWithModel(ctx context.Context) ([]ListAnnotators
 			&i.Kind,
 			&i.Label,
 			&i.Model,
+			&i.RefCount,
 		); err != nil {
 			return nil, err
 		}
@@ -438,13 +439,13 @@ func (q *Queries) ListAnnotatorsWithModel(ctx context.Context) ([]ListAnnotators
 }
 
 const listGameDisplays = `-- name: ListGameDisplays :many
-SELECT external_game_id, name, short, monetization, display_color
+SELECT external_game_id, name, short, monetization, display_color, source_refs
 FROM game_display
 ORDER BY external_game_id
 `
 
-// the curated games with their presentation metadata. external_game_id is the stable id
-// the frontend uses as `gameId`; the rest are display-only fields the pipeline never needed.
+// the curated games with their presentation metadata and per-source handles. external_game_id is the
+// stable internal id the frontend uses as `gameId`; source_refs maps each source to its scrape handle.
 func (q *Queries) ListGameDisplays(ctx context.Context) ([]GameDisplay, error) {
 	rows, err := q.db.Query(ctx, listGameDisplays)
 	if err != nil {
@@ -460,6 +461,7 @@ func (q *Queries) ListGameDisplays(ctx context.Context) ([]GameDisplay, error) {
 			&i.Short,
 			&i.Monetization,
 			&i.DisplayColor,
+			&i.SourceRefs,
 		); err != nil {
 			return nil, err
 		}
@@ -619,7 +621,10 @@ func (q *Queries) ListPopulationsForGame(ctx context.Context, externalGameID int
 }
 
 const listPrompts = `-- name: ListPrompts :many
-SELECT id, name, version, modality FROM prompts ORDER BY id
+SELECT p.id, p.name, p.version, p.modality,
+    (SELECT count(*) FROM runs r WHERE r.prompt_id = p.id)::int AS run_count
+FROM prompts p
+ORDER BY p.id
 `
 
 type ListPromptsRow struct {
@@ -627,9 +632,11 @@ type ListPromptsRow struct {
 	Name     string `json:"name"`
 	Version  int32  `json:"version"`
 	Modality string `json:"modality"`
+	RunCount int32  `json:"run_count"`
 }
 
-// every prompt as a form option: its id, name, version and modality. ordered by id for a stable list.
+// every prompt as a form option: its id, name, version and modality, plus how many runs use it (a
+// prompt with runs is frozen). ordered by id for a stable list.
 func (q *Queries) ListPrompts(ctx context.Context) ([]ListPromptsRow, error) {
 	rows, err := q.db.Query(ctx, listPrompts)
 	if err != nil {
@@ -644,6 +651,7 @@ func (q *Queries) ListPrompts(ctx context.Context) ([]ListPromptsRow, error) {
 			&i.Name,
 			&i.Version,
 			&i.Modality,
+			&i.RunCount,
 		); err != nil {
 			return nil, err
 		}

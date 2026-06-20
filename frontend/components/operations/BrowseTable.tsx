@@ -1,6 +1,20 @@
 "use client";
 
 import { type ReactNode } from "react";
+import { Plus } from "lucide-react";
+
+// NewButton opens a create drawer from a panel header.
+export function NewButton({ onClick, label = "New" }: { onClick: () => void; label?: string }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-slate-700"
+        >
+            <Plus className="size-4" /> {label}
+        </button>
+    );
+}
 
 // Panel shell
 export function BrowsePanel({

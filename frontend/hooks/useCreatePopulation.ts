@@ -13,6 +13,7 @@ export function useCreatePopulation() {
         mutationFn: (body: CreatePopulationInput) => api.operations.createPopulation(body),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: qk.dashboard });
+            queryClient.invalidateQueries({ queryKey: qk.populations });
         },
     });
 }

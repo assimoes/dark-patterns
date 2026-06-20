@@ -10,9 +10,14 @@ import {
     EnqueueAnnotationsResult,
     EnqueueScrapeInput,
     EnqueueScrapeResult,
+    ImpactResult,
+    PromptInput,
+    UpdateAnnotatorInput,
+    UpdateGameInput,
     UploadImagesInput,
     UploadImagesResult
 } from "@/lib/types";
+import type { PromptRow } from "@/lib/types/browse";
 import { fetchJSON } from "@/lib/api/utils";
 
 // reads a File into raw base64 (no data: prefix). the backend wraps it into a data uri itself.
@@ -80,4 +85,54 @@ export default {
             body: JSON.stringify({ game_id: body.game_id, images }),
         });
     },
+
+    // PUT /api/games/{id}
+    updateGame: (id: string, body: UpdateGameInput) =>
+        fetchJSON<CreateGameResult>(`/api/games/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(body),
+        }),
+    // DELETE /api/games/{id}
+    deleteGame: (id: string) =>
+        fetchJSON<void>(`/api/games/${id}`, { method: "DELETE" }),
+
+    // POST /api/prompts
+    createPrompt: (body: PromptInput) =>
+        fetchJSON<PromptRow>("/api/prompts", {
+            method: "POST",
+            body: JSON.stringify(body),
+        }),
+    // PUT /api/prompts/{id}
+    updatePrompt: (id: string, body: PromptInput) =>
+        fetchJSON<PromptRow>(`/api/prompts/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(body),
+        }),
+    // DELETE /api/prompts/{id}
+    deletePrompt: (id: string) =>
+        fetchJSON<void>(`/api/prompts/${id}`, { method: "DELETE" }),
+
+    // PUT /api/annotators/{id}
+    updateAnnotator: (id: string, body: UpdateAnnotatorInput) =>
+        fetchJSON<void>(`/api/annotators/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(body),
+        }),
+    // DELETE /api/annotators/{id}
+    deleteAnnotator: (id: string) =>
+        fetchJSON<void>(`/api/annotators/${id}`, { method: "DELETE" }),
+
+    // DELETE /api/populations/{id}
+    deletePopulation: (id: string) =>
+        fetchJSON<void>(`/api/populations/${id}`, { method: "DELETE" }),
+    // GET /api/populations/{id}/impact
+    populationImpact: (id: string) =>
+        fetchJSON<ImpactResult>(`/api/populations/${id}/impact`),
+
+    // DELETE /api/runs/{id}
+    deleteRun: (id: string) =>
+        fetchJSON<void>(`/api/runs/${id}`, { method: "DELETE" }),
+    // GET /api/runs/{id}/impact
+    runImpact: (id: string) =>
+        fetchJSON<ImpactResult>(`/api/runs/${id}/impact`),
 }

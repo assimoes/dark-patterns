@@ -99,11 +99,55 @@ type AnnotatorResponse struct {
 	ModelID *int32 `json:"model_id"`
 }
 
-// AddGameRequest is the body of POST /api/games, the fields that become a game_display row.
+// AddGameRequest is the body of POST /api/games. the id is auto-assigned; source_refs holds the
+// per-source scrape handles, e.g. {"steam":"570","reddit":"r/EVE"}.
 type AddGameRequest struct {
-	ExternalGameID int32  `json:"external_game_id"`
-	Name           string `json:"name"`
-	Short          string `json:"short"`
-	Monetization   string `json:"monetization"`
-	Color          string `json:"color"`
+	Name         string            `json:"name"`
+	Short        string            `json:"short"`
+	Monetization string            `json:"monetization"`
+	Color        string            `json:"color"`
+	SourceRefs   map[string]string `json:"source_refs"`
+}
+
+// UpdateGameRequest is the body of PUT /api/games/{id}, the display fields and source handles an edit
+// can change.
+type UpdateGameRequest struct {
+	Name         string            `json:"name"`
+	Short        string            `json:"short"`
+	Monetization string            `json:"monetization"`
+	Color        string            `json:"color"`
+	SourceRefs   map[string]string `json:"source_refs"`
+}
+
+// PromptDetail is one prompts full body, for the edit form to prefill.
+type PromptDetail struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	Version      int    `json:"version"`
+	Modality     string `json:"modality"`
+	SystemPrompt string `json:"system_prompt"`
+	Template     string `json:"template"`
+}
+
+// PromptRequest is the body of POST /api/prompts and PUT /api/prompts/{id}.
+type PromptRequest struct {
+	Name         string `json:"name"`
+	Version      int32  `json:"version"`
+	Modality     string `json:"modality"`
+	SystemPrompt string `json:"system_prompt"`
+	Template     string `json:"template"`
+}
+
+// UpdateAnnotatorRequest is the body of PUT /api/annotators/{id}; only the label is editable.
+type UpdateAnnotatorRequest struct {
+	Label string `json:"label"`
+}
+
+// ImpactResult is the blast radius of a cascade delete, shown in the confirm dialog before deleting.
+type ImpactResult struct {
+	Individuals   int `json:"individuals"`
+	Runs          int `json:"runs"`
+	Annotations   int `json:"annotations"`
+	Samples       int `json:"samples"`
+	Adjudications int `json:"adjudications"`
 }

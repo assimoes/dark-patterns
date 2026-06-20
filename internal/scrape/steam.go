@@ -28,10 +28,19 @@ func (s steamSource) Fetch(ctx context.Context, target, cursor string, params ma
 		cursor = "*"
 	}
 
+	filter := params["filter"]
+	if filter == "" {
+		filter = "recent"
+	}
+	language := params["language"]
+	if language == "" {
+		language = "english"
+	}
+
 	reviews, next, err := s.client.FetchOnce(ctx, steam.FetchOpts{
 		AppID:    target,
-		Filter:   params["filter"],
-		Language: params["language"],
+		Filter:   filter,
+		Language: language,
 	}, cursor)
 	if err != nil {
 		return nil, "", err

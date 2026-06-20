@@ -17,26 +17,46 @@ type Querier interface {
 	ClassifyReviewsForSampling(ctx context.Context, arg ClassifyReviewsForSamplingParams) ([]ClassifyReviewsForSamplingRow, error)
 	// gold run: how many patterns are decided per review, to show progress on the worklist.
 	CountAdjudicationsPerReview(ctx context.Context, runID int32) ([]CountAdjudicationsPerReviewRow, error)
+	CountAnnotatorRefs(ctx context.Context, annotatorID int32) (int32, error)
 	CountArtifactsBySource(ctx context.Context, arg CountArtifactsBySourceParams) (int64, error)
+	CountArtifactsForGame(ctx context.Context, externalGameID int32) (int32, error)
 	// how many panel members completed this review (the denominator for every patterns vote).
 	CountCompletedRaters(ctx context.Context, arg CountCompletedRatersParams) (int32, error)
 	CountIndividuals(ctx context.Context, populationID int32) (int64, error)
 	// curated individuals (reviews in a population) per game, across every population.
 	CountIndividualsPerGame(ctx context.Context) ([]CountIndividualsPerGameRow, error)
+	CountRunsForPrompt(ctx context.Context, promptID int32) (int32, error)
 	CreateAnnotator(ctx context.Context, arg CreateAnnotatorParams) (int32, error)
 	CreatePopulation(ctx context.Context, arg CreatePopulationParams) (int32, error)
 	CreatePrompt(ctx context.Context, arg CreatePromptParams) (int32, error)
 	CreateRun(ctx context.Context, arg CreateRunParams) (int32, error)
+	// sample items cascade on the sample delete.
+	DeleteAdjudicationSamplesByRun(ctx context.Context, panelRunID int32) error
+	DeleteAdjudicationsByRun(ctx context.Context, runID int32) error
 	// clear prior pattern rows before re-writing, so a retry doesnt leave stale ones.
 	DeleteAnnotationPatterns(ctx context.Context, annotationID int64) error
+	DeleteAnnotationPatternsByRun(ctx context.Context, runID int32) error
+	DeleteAnnotationsByRun(ctx context.Context, runID int32) error
+	DeleteAnnotator(ctx context.Context, id int32) error
+	DeleteGameDisplay(ctx context.Context, externalGameID int32) error
+	DeleteIndividualsByPopulation(ctx context.Context, populationID int32) error
+	DeletePopulation(ctx context.Context, id int32) error
+	DeletePrompt(ctx context.Context, id int32) error
+	// run_annotators cascade on the run delete.
+	DeleteRun(ctx context.Context, id int32) error
 	FreezeImagePopulation(ctx context.Context, arg FreezeImagePopulationParams) (int64, error)
 	// a multimodal artifact has both channels, so this joins both detail tables: only artifacts with a body
 	// and an image are frozen.
 	FreezeMultimodalPopulation(ctx context.Context, arg FreezeMultimodalPopulationParams) (int64, error)
 	FreezeStratifiedPopulation(ctx context.Context, arg FreezeStratifiedPopulationParams) (int64, error)
+	// artifacts per game, the delete guard: a game with any artifact is frozen.
+	GameArtifactTotals(ctx context.Context) ([]GameArtifactTotalsRow, error)
 	GameReviewTotals(ctx context.Context) ([]GameReviewTotalsRow, error)
 	GetAnnotatorByLabel(ctx context.Context, label string) (Annotator, error)
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
+	// the scrape handle a game registered for one source (e.g. its subreddit for 'reddit'). empty when the
+	// game has no binding for that source.
+	GetGameSourceRef(ctx context.Context, arg GetGameSourceRefParams) (string, error)
 	// the most recent gold run for a population. adjudication samples and decisions write into one gold
 	// run per population; pick the newest so a freshly drawn sample lands on the run the auditor reads.
 	GetGoldRunForPopulation(ctx context.Context, populationID int32) (int32, error)
@@ -76,7 +96,8 @@ type Querier interface {
 	// one frozen member of a sample: its stratum and its inverse-probability weight (drawn / stratum_size).
 	InsertAdjudicationSampleItem(ctx context.Context, arg InsertAdjudicationSampleItemParams) error
 	InsertAnnotationPattern(ctx context.Context, arg InsertAnnotationPatternParams) error
-	// register a game so it appears on the dashboard list and can be scraped.
+	// register a game so it appears on the dashboard list and can be scraped. external_game_id is left to
+	// the sequence (a high internal id), source_refs holds the per-source scrape handles.
 	InsertGameDisplay(ctx context.Context, arg InsertGameDisplayParams) (GameDisplay, error)
 	ListActiveModels(ctx context.Context) ([]Model, error)
 	ListActiveModelsByModality(ctx context.Context, dollar_1 string) ([]Model, error)
@@ -88,8 +109,8 @@ type Querier interface {
 	ListAnnotatorsWithModel(ctx context.Context) ([]ListAnnotatorsWithModelRow, error)
 	// gold run
 	ListDedicedCells(ctx context.Context, runID int32) ([]ListDedicedCellsRow, error)
-	// the curated games with their presentation metadata. external_game_id is the stable id
-	// the frontend uses as `gameId`; the rest are display-only fields the pipeline never needed.
+	// the curated games with their presentation metadata and per-source handles. external_game_id is the
+	// stable internal id the frontend uses as `gameId`; source_refs maps each source to its scrape handle.
 	ListGameDisplays(ctx context.Context) ([]GameDisplay, error)
 	// the strategic-intent parents used by a pinned meso version
 	ListHighLevelsForMesoVersion(ctx context.Context, version int32) ([]ListHighLevelsForMesoVersionRow, error)
@@ -110,7 +131,8 @@ type Querier interface {
 	// population is multi-game (stratified, per-game capped), so this is THIS games part of it. counts
 	// are per population, never summed across them.
 	ListPopulationsForGame(ctx context.Context, externalGameID int32) ([]ListPopulationsForGameRow, error)
-	// every prompt as a form option: its id, name, version and modality. ordered by id for a stable list.
+	// every prompt as a form option: its id, name, version and modality, plus how many runs use it (a
+	// prompt with runs is frozen). ordered by id for a stable list.
 	ListPrompts(ctx context.Context) ([]ListPromptsRow, error)
 	// existing gold labels for one review in one pass, to pre-fill the checkboxes on revisit. the blind
 	// read asks for pass='blind' so it never sees the open-pass labels, and the other way round.
@@ -121,6 +143,7 @@ type Querier interface {
 	ListReviewDetections(ctx context.Context, arg ListReviewDetectionsParams) ([]ListReviewDetectionsRow, error)
 	// read the frozen panel.
 	ListRunAnnotators(ctx context.Context, runID int32) ([]ListRunAnnotatorsRow, error)
+	ListRunIDsByPopulation(ctx context.Context, populationID int32) ([]int32, error)
 	// every run with what an operator needs to recognise and pick it: its type, the population modality as a
 	// label, the foreign keys, the taxonomy version, when it ran, and the size of the panel it pinned.
 	ListRuns(ctx context.Context) ([]ListRunsRow, error)
@@ -147,11 +170,17 @@ type Querier interface {
 	// its kind (llm | human) and a display label (the model name for an llm, the annotators own label
 	// for a human). run_annotators is the single source of "who annotates this run".
 	PanelForPopulation(ctx context.Context, populationID int32) ([]PanelForPopulationRow, error)
+	// the blast radius of deleting a population: its individuals, the runs over it, and those runs
+	// annotations and adjudication samples.
+	PopulationImpact(ctx context.Context, populationID int32) (PopulationImpactRow, error)
 	// for one population, its per-game slice: how many of the populations reviews belong to each game and
 	// how many of those have a completed annotation. mirrors ListPopulationsForGame but pivots to group by
 	// game within a single population instead of by population within a single game.
 	PopulationPerGame(ctx context.Context, populationID int32) ([]PopulationPerGameRow, error)
 	ReviewStatsPerGame(ctx context.Context) ([]ReviewStatsPerGameRow, error)
+	// the blast radius of deleting a run: its annotations, the adjudication samples it seeds (as panel or
+	// gold), and its adjudications.
+	RunImpact(ctx context.Context, runID int32) (RunImpactRow, error)
 	// fixed N individuals per game from the population, ordered deterministically
 	// always yields the same subset.
 	// drops any review where a panel member didnt 'complete' (>=1 parse_error) for the panel run
@@ -163,6 +192,10 @@ type Querier interface {
 	SetRunConfigDigest(ctx context.Context, arg SetRunConfigDigestParams) error
 	// freeze one panel member
 	SnapshotRunAnnotator(ctx context.Context, arg SnapshotRunAnnotatorParams) error
+	UpdateAnnotatorLabel(ctx context.Context, arg UpdateAnnotatorLabelParams) error
+	// edit a games display fields and its per-source handles.
+	UpdateGameDisplay(ctx context.Context, arg UpdateGameDisplayParams) (GameDisplay, error)
+	UpdatePrompt(ctx context.Context, arg UpdatePromptParams) error
 	// re-saving a review updates the decision (the auditor is deliberately changing it) and re-freezes
 	// the panel seed at the new decision time. pass keeps the open and blind labels for a cell apart, so
 	// saving one never touches the other.

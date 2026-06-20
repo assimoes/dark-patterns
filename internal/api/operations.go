@@ -20,7 +20,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// createGame registers a game so it shows on the dashboard and can be scraped.
+// createGame registers a game so it shows on the dashboard and can be scraped. the internal id is
+// auto-assigned; source_refs holds the per-source scrape handles.
 func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 
 	req, ok := decodeJSON[dto.AddGameRequest](s, w, r)
@@ -28,19 +29,15 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ExternalGameID <= 0 {
-		s.writeError(w, http.StatusBadRequest, "external_game_id must be a positive integer", nil)
-		return
-	}
-
 	name := req.Name
 	if name == "" {
-		name = fmt.Sprintf("Game %d", req.ExternalGameID)
+		s.writeError(w, http.StatusBadRequest, "name is required", nil)
+		return
 	}
 
 	short := req.Short
 	if short == "" {
-		short = strconv.FormatInt(int64(req.ExternalGameID), 10)
+		short = name
 	}
 
 	monetization := req.Monetization
@@ -57,23 +54,31 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 		color = "#64748b"
 	}
 
-	if _, err := s.q.InsertGameDisplay(r.Context(), db.InsertGameDisplayParams{
-		ExternalGameID: req.ExternalGameID,
-		Name:           name,
-		Short:          short,
-		Monetization:   monetization,
-		DisplayColor:   color,
-	}); err != nil {
+	refs, err := marshalRefs(req.SourceRefs)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "encode source_refs", err)
+		return
+	}
+
+	row, err := s.q.InsertGameDisplay(r.Context(), db.InsertGameDisplayParams{
+		Name:         name,
+		Short:        short,
+		Monetization: monetization,
+		DisplayColor: color,
+		SourceRefs:   refs,
+	})
+	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "register game", err)
 		return
 	}
 
 	s.writeJSON(w, http.StatusCreated, dto.Game{
-		ID:           dto.GameID(req.ExternalGameID),
-		Name:         name,
-		Short:        short,
-		Monetization: monetization,
-		Color:        color,
+		ID:           dto.GameID(row.ExternalGameID),
+		Name:         row.Name,
+		Short:        row.Short,
+		Monetization: row.Monetization,
+		Color:        row.DisplayColor,
+		SourceRefs:   refsMap(row.SourceRefs),
 	})
 }
 
@@ -340,9 +345,11 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// createScrape enqueues the first scrape page for a game on one source. the source picks the worker
-// queue and target is its handle (steam app id, subreddit); filter and language are steam-only knobs.
+// createScrape enqueues the first scrape page for a game on one source. the target is resolved from the
+// games source_refs for that source (a request target overrides it), so the handler never hardcodes a
+// source. filter and language are optional knobs a source may use (steam does).
 func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
 	req, ok := decodeJSON[dto.ScrapeRequest](s, w, r)
 	if !ok {
@@ -353,8 +360,8 @@ func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "game_id must be a positive integer", nil)
 		return
 	}
-	if req.Target == "" {
-		s.writeError(w, http.StatusBadRequest, "target is required", nil)
+	if req.Source == "" {
+		s.writeError(w, http.StatusBadRequest, "source is required", nil)
 		return
 	}
 
@@ -367,30 +374,38 @@ func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params map[string]string
-	switch req.Source {
-	case "steam":
-		filter := req.Filter
-		if filter == "" {
-			filter = "recent"
+	// resolve the scrape handle from the games source_refs, unless the request pins one explicitly.
+	target := req.Target
+	if target == "" {
+		handle, err := s.q.GetGameSourceRef(ctx, db.GetGameSourceRefParams{
+			ExternalGameID: req.GameID,
+			Source:         req.Source,
+		})
+		if err != nil {
+			s.writeError(w, http.StatusInternalServerError, "resolve source handle", err)
+			return
 		}
-		if filter != "recent" && filter != "updated" {
+		if handle == "" {
+			s.writeError(w, http.StatusBadRequest, fmt.Sprintf("game has no %q source handle", req.Source), nil)
+			return
+		}
+		target = handle
+	}
+
+	// optional knobs passed through to the source. steam reads filter/language; others ignore them.
+	params := map[string]string{}
+	if req.Filter != "" {
+		if req.Filter != "recent" && req.Filter != "updated" {
 			s.writeError(w, http.StatusBadRequest, "filter must be 'recent' or 'updated'", nil)
 			return
 		}
-		lang := req.Lang
-		if lang == "" {
-			lang = "english"
-		}
-		params = map[string]string{"filter": filter, "language": lang}
-	case "reddit":
-		params = nil
-	default:
-		s.writeError(w, http.StatusBadRequest, "source must be 'steam' or 'reddit'", nil)
-		return
+		params["filter"] = req.Filter
+	}
+	if req.Lang != "" {
+		params["language"] = req.Lang
 	}
 
-	if err := scrape.Enqueue(r.Context(), s.riverClient, s.pool, req.Source, req.GameID, req.Target, params, max); err != nil {
+	if err := scrape.Enqueue(ctx, s.riverClient, s.pool, req.Source, req.GameID, target, params, max); err != nil {
 		s.writeError(w, http.StatusInternalServerError, "enqueue scrape", err)
 		return
 	}
@@ -399,7 +414,7 @@ func (s *Server) createScrape(w http.ResponseWriter, r *http.Request) {
 		"enqueued": true,
 		"game_id":  req.GameID,
 		"source":   req.Source,
-		"target":   req.Target,
+		"target":   target,
 		"max":      max,
 	})
 }
