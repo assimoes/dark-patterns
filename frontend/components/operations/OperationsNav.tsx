@@ -10,6 +10,7 @@ const tabs = [
     { href: "/operations/browse/runs", label: "Runs" },
     { href: "/operations/browse/prompts", label: "Prompts" },
     { href: "/operations/browse/annotators", label: "Annotators" },
+    { href: "/operations/browse/comparisons", label: "Comparisons" },
 ];
 
 export function OperationsNav() {

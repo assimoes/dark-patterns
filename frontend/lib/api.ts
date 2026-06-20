@@ -5,6 +5,7 @@ import operations from "./api/operations";
 import browse from "./api/browse";
 import adjudication from "./api/adjudication";
 import descriptions from "./api/descriptions";
+import comparisons from "./api/comparisons";
 
 export const api = {
 
@@ -14,4 +15,5 @@ export const api = {
     browse,
     adjudication,
     descriptions,
+    comparisons,
 }

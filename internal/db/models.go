@@ -81,6 +81,15 @@ type Artifact struct {
 	ExternalGameID int32              `json:"external_game_id"`
 }
 
+type Comparison struct {
+	ID        int32              `json:"id"`
+	Label     string             `json:"label"`
+	RunAID    int32              `json:"run_a_id"`
+	RunBID    int32              `json:"run_b_id"`
+	Contract  json.RawMessage    `json:"contract"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type GameDescription struct {
 	ID             int32              `json:"id"`
 	ExternalGameID int32              `json:"external_game_id"`
