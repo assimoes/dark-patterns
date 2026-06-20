@@ -6,6 +6,25 @@ import (
 	"github.com/assimoes/dsr/internal/db"
 )
 
+// PatternCount is one (game, pattern) detection tally for a run: the number of reviews where the panel
+// majority flagged the code. GET /api/runs/{id}/distribution returns these; the client rolls them up by
+// pattern and family, per game and across all games.
+type PatternCount struct {
+	GameID   string `json:"gameId"`
+	GameName string `json:"gameName"`
+	Code     string `json:"code"`
+	Reviews  int    `json:"reviews"`
+}
+
+func NewPatternCount(r db.RunPatternDistributionRow) PatternCount {
+	return PatternCount{
+		GameID:   GameID(r.ExternalGameID),
+		GameName: r.GameName,
+		Code:     r.Code,
+		Reviews:  int(r.Reviews),
+	}
+}
+
 // CreateComparisonRequest is the body of POST /api/comparisons.
 type CreateComparisonRequest struct {
 	Label  string `json:"label"`

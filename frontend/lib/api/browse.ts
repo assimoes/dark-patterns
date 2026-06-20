@@ -1,6 +1,7 @@
 import {
     AnnotatorRow,
     GameRow,
+    PatternCount,
     PopulationDetail,
     PopulationSummary,
     PromptDetail,
@@ -32,6 +33,9 @@ export default {
 
     // GET /api/runs/{id}
     getRun: (id: number) => fetchJSON<RunDetail>(`/api/runs/${id}`),
+
+    // GET /api/runs/{id}/distribution — per-game pattern detection tallies for a run.
+    runDistribution: (id: number) => fetchJSON<PatternCount[]>(`/api/runs/${id}/distribution`),
 
     // GET /api/games
     listGames: () => fetchJSON<GameRow[]>("/api/games"),

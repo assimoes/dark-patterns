@@ -18,6 +18,7 @@ export const qk = {
     comparisons: ["comparisons"] as const,
     comparison: (id: number) => ["comparison", id] as const,
     comparisonReviews: (id: number) => ["comparisonReviews", id] as const,
+    runDistribution: (id: number) => ["runDistribution", id] as const,
     adjudicationSample: (runId: string, pass: string) =>
         ["adjudicationSample", runId, pass] as const,
     reviewAdjudication: (reviewId: string, panelRunId: string) =>

@@ -17,6 +17,10 @@ export function useComparisonReviews(id: number) {
     return useQuery({ queryKey: qk.comparisonReviews(id), queryFn: () => api.comparisons.reviews(id) });
 }
 
+export function useRunDistribution(runId: number) {
+    return useQuery({ queryKey: qk.runDistribution(runId), queryFn: () => api.browse.runDistribution(runId) });
+}
+
 export function useCreateComparison() {
     const qc = useQueryClient();
     return useMutation({

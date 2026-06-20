@@ -83,6 +83,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("PUT /api/game-descriptions/{id}", s.updateGameDescription)
 	mux.HandleFunc("POST /api/game-descriptions/{id}/approve", s.approveGameDescription)
 
+	mux.HandleFunc("GET /api/runs/{id}/distribution", s.runDistribution)
 	mux.HandleFunc("GET /api/comparisons", s.listComparisons)
 	mux.HandleFunc("POST /api/comparisons", s.createComparison)
 	mux.HandleFunc("GET /api/comparisons/{id}", s.getComparison)

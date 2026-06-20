@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { BrowsePanel, TableError, TableSkeleton } from "@/components/operations/BrowseTable";
 import { ComparisonReview } from "@/components/operations/ComparisonReview";
-import { useComparison, useComparisonReviews } from "@/hooks/useComparisons";
-import type { AttributeDiff, ComparisonReviewRow, ModelAgreement } from "@/lib/types";
+import { DetectionProfile } from "@/components/operations/DetectionProfile";
+import { inputClass } from "@/components/operations/form";
+import { useComparison, useComparisonReviews, useRunDistribution } from "@/hooks/useComparisons";
+import type { AttributeDiff, ComparisonReviewRow, ModelAgreement, RunRef } from "@/lib/types";
 
 export default function ComparisonDetailPage() {
     const params = useParams<{ id: string }>();
@@ -54,6 +56,8 @@ export default function ComparisonDetailPage() {
                 )}
             </BrowsePanel>
 
+            {detail.data ? <DetectionSection runA={detail.data.runA} runB={detail.data.runB} /> : null}
+
             <BrowsePanel
                 title="Reviews"
                 subtitle="Sorted by flips. Click one to compare below."
@@ -98,6 +102,51 @@ export default function ComparisonDetailPage() {
             </BrowsePanel>
         </div>
         </div>
+    );
+}
+
+function DetectionSection({ runA, runB }: { runA: RunRef; runB: RunRef }) {
+    const distA = useRunDistribution(runA.id);
+    const distB = useRunDistribution(runB.id);
+    const [game, setGame] = useState("all");
+
+    // the games either run detected anything in, for the scope selector.
+    const gameOptions = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const r of [...(distA.data ?? []), ...(distB.data ?? [])]) map.set(r.gameId, r.gameName);
+        return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    }, [distA.data, distB.data]);
+
+    return (
+        <BrowsePanel
+            title="Detection profile"
+            subtitle="Most-flagged patterns and family mix per run — reviews where the panel majority flagged each pattern."
+            badge={
+                <select className={`${inputClass} py-1 text-xs`} value={game} onChange={(e) => setGame(e.target.value)}>
+                    <option value="all">All games</option>
+                    {gameOptions.map(([id, name]) => (
+                        <option key={id} value={id}>{name}</option>
+                    ))}
+                </select>
+            }
+        >
+            {distA.isPending || distB.isPending ? (
+                <TableSkeleton columns={2} />
+            ) : distA.isError || distB.isError ? (
+                <TableError onRetry={() => { distA.refetch(); distB.refetch(); }} />
+            ) : (
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div>
+                        <h4 className="mb-3 text-sm font-semibold text-slate-700">{runA.label}</h4>
+                        <DetectionProfile rows={distA.data ?? []} gameId={game} />
+                    </div>
+                    <div className="md:border-l md:border-slate-100 md:pl-6">
+                        <h4 className="mb-3 text-sm font-semibold text-slate-700">{runB.label}</h4>
+                        <DetectionProfile rows={distB.data ?? []} gameId={game} />
+                    </div>
+                </div>
+            )}
+        </BrowsePanel>
     );
 }
 
