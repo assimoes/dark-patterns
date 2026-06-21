@@ -1,36 +1,33 @@
 # Dark Patterns in Game Reviews (dsr)
 
-This is the code I built for my master thesis. The idea is to find dark patterns (manipulative design
-tricks) in video games by reading what players write in their public reviews, instead of looking at
-screenshots of the game.
+This is the code built for my master thesis. The idea is to find manipulative design tricks (aka Dark Patterns) in video games by reading what players write in their public reviews, instead of looking at screenshots of the game.
 
-It works like a small pipeline. I collect reviews from Steam (and Reddit too), then a panel of language
-models reads each review and says which dark patterns it sees. After that I check a sample of those
-decisions by hand, so I have a human reference to measure the panel against.
+It works like a small pipeline by collecting reviews from Steam (and Reddit too). A panel of language
+models then reads each review and annotates which dark patterns it finds against a predetermined codebook (taxonomy). After that it can create stratified samples of those decisions, which are then adjudicated by a human to serve as a reference to measure the panel against.
 
 ## What it does
 
 - Collects public reviews for a list of games.
-- Has a panel of a few LLMs annotate each review against a taxonomy of 19 dark patterns (the MESO level).
-- Lets me adjudicate a sample by hand: for each pattern I confirm or replace the panel's majority vote.
-- Keeps everything frozen and versioned (the sample, the prompt, the taxonomy, the panel), so a run can be
-  reproduced later.
-- Lets me compare two runs to see where the models disagree, and look at which patterns each run flags the
+- Has a panel of a few LLMs annotate each review against a taxonomy of 19 dark patterns (at the MESO level).
+- Lets you adjudicate a sample by hand: for each pattern you can confirm or replace the panel's majority vote.
+- Keeps everything frozen and versioned (sample, prompt, taxonomy and the panel), so a run can be reproduced later.
+- Lets you compare two runs to see where the models disagree, and look at which patterns each run flags the
   most.
+- TODO: Jupyter Notebook with IRR (Krippendorff alpha, Cohen's kappa, Gwet's AC1), Precision, Recall and F1 analysis
 
 ## How it works
 
 The data goes through a few steps. Each one leaves a trace in the database.
 
 1. **Scrape** the reviews for a game from Steam or Reddit. The pages are pulled in the background.
-2. **Curate** a population. This freezes a fixed sample of reviews (so many per game), so a run always
+2. **Curate** a population. This freezes a fixed sample of reviews (X per game), so a run always
    annotates the same set even if new reviews arrive later.
-3. **Run + annotate**. A run pins a population, a prompt, a taxonomy version and a panel of annotators.
-   Then the panel reads every review and stores its answers.
-4. **Adjudicate**. I open a sample in the frontend and decide each pattern by hand. There is an open pass
-   (I see the panel votes) and a blind pass (I don't). The panel state is saved at the moment I decide, so
+3. **Run and annotate**. A run pins a population, a prompt, a taxonomy version and a panel of annotators.
+   Then the panel reads every review and stores its answers (annotations).
+4. **Adjudicate**. You create a sample in the frontend and decide each pattern by hand. There is an open pass
+   (you see the panel votes) and a blind pass (you don't). The panel state is saved at the moment you decide, so
    the decision stays auditable.
-5. **Compare**. I can put two runs side by side and look at the divergence per review, per model and per
+5. **Compare**. You can put two runs side by side and look at the divergence per review, per model and per
    pattern.
 
 The main objects are: games, reviews (artifacts), populations, runs, annotators (human or LLM), and the
@@ -40,10 +37,10 @@ adjudications.
 
 **Backend** (Go 1.25). Postgres for storage, with `sqlc` to generate the queries and `pgx` to talk to the
 database. Background jobs run on [River](https://riverqueue.com). The LLM calls go through
-[OpenRouter](https://openrouter.ai), so I can use models from different families in the same panel.
+[OpenRouter](https://openrouter.ai), so you can use models from different families in the same panel.
 
 **Frontend** (`frontend/`). Next.js 16 with React 19, Tailwind and TanStack Query. It is the console where
-I manage games, populations and runs, and where I do the adjudication. It talks to the Go API over HTTP.
+you manage games, populations and runs, and where you do the adjudication. It talks to the Go API over HTTP.
 
 ## Running it locally
 
@@ -64,6 +61,11 @@ You need: Go 1.25, Node, Docker, and [golang-migrate](https://github.com/golang-
    cp .env.example .env
    # then add this line to .env:
    # OPENROUTER_API_KEY=sk-or-...
+   // change to your nextjs url
+   # FRONTEND_ORIGIN=http://localhost:3000
+   // change to a model you want to use when adding games. We use an LLM with web_search tool access to grab
+   // general information about games and main game loops to give some context to the annotation panel
+   # RESEARCH_MODEL=google/gemini-3-flash-preview
    ```
 
 3. Run the migrations and set up the job queue tables:
@@ -79,7 +81,7 @@ You need: Go 1.25, Node, Docker, and [golang-migrate](https://github.com/golang-
    go run ./cmd/api
    ```
 
-5. Start the workers, each in its own terminal:
+5. Start the workers, each in its own terminal (these are all you need. Curating populations, etc can be done via frontend):
 
    ```bash
    go run ./cmd/scrape serve
@@ -118,7 +120,9 @@ The API and the workers run as servers. The rest are one-off commands.
 - `go run ./cmd/annotate enqueue -run <id>` — queues the annotation jobs for a run (the `serve` worker
   then does the work).
 
-Scraping and game research are usually started from the frontend, not the command line.
+```
+Scraping and game research are usually started from the frontend. It's not recommended to use the curate, run and annotate command line tools because these didn't receive the same love as the frontend tools, and may be stale.
+```
 
 ## Project layout
 
@@ -137,11 +141,11 @@ choices come from the thesis and not from general best practice.
 A few things are on purpose:
 
 - The taxonomy and the prompts are versioned, so old runs keep pointing at the version they used.
-- When I adjudicate, the panel vote at that moment is stored with my decision. This way I can always go
+- When you adjudicate, the panel vote at that moment is stored with my decision. This way you can always go
   back and see what the panel had said.
-- The migrations are append only. To fix an old one I add a new migration instead of editing it.
+- The migrations are append only. To fix an old one you add a new migration instead of editing it.
 
-## AI use
+## AI use disclosure
 
 I built this with the help of an AI assistant (Claude). I used it mostly to save time on work that
 followed patterns already set in the codebase, so newer features were built the same way as the existing
