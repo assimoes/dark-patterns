@@ -10,6 +10,14 @@ import (
 
 type Querier interface {
 	AddIndividual(ctx context.Context, arg AddIndividualParams) error
+	// Long format for one run: one row per (review x panel model) x pattern with present being a flag
+	// that indicates the model detected that pattern in the review
+	AnalysisAnnotations(ctx context.Context, runID int32) ([]AnalysisAnnotationsRow, error)
+	// The adjudicated gold for a gold run, long format per (review, pattern, pass). final_label is the
+	// human annotator call; direction records whether it confirmed or replaced the panel majority at decision time.
+	AnalysisGold(ctx context.Context, goldRunID int32) ([]AnalysisGoldRow, error)
+	// The raw panel coverage for a run
+	AnalysisStatus(ctx context.Context, runID int32) ([]AnalysisStatusRow, error)
 	// freeze a draft as the approved version. blocked unless it is a draft with no unresolved valence flags.
 	ApproveDescription(ctx context.Context, arg ApproveDescriptionParams) (GameDescription, error)
 	// the candidate pool for a sample: every completed review in the population, tagged with its stratum.

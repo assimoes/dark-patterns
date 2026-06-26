@@ -95,6 +95,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}/impact", s.runImpact)
 	mux.HandleFunc("DELETE /api/runs/{id}", s.deleteRun)
 
+	mux.HandleFunc("GET /api/runs/{id}/analysis-export", s.analysisExport)
+
 	return s.withCORS(s.withLogging(mux))
 }
 
