@@ -120,7 +120,7 @@ SELECT
     an.status,
     COALESCE(an.response_meta->>'finish_reason', '')::text AS finish_reason
 FROM annotations an
-JOIN run_annotators ra on ra.run_id = an.run_id and ra.annotator_id = an.annotation_id
+JOIN run_annotators ra on ra.run_id = an.run_id and ra.annotator_id = an.annotator_id
 WHERE an.run_id = $1
 ORDER BY an.individual_id, ra.model_slug
 `
