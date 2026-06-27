@@ -74,4 +74,50 @@ JOIN run_annotators ra on ra.run_id = an.run_id and ra.annotator_id = an.annotat
 WHERE an.run_id = sqlc.arg(run_id)
 ORDER BY an.individual_id, ra.model_slug;
 
+-- name: AnalysisFailures :many
+-- Every annotation that did not complete, for one run, with its model, finish reason, token count, and the
+-- raw text the model returned that failed to parse -- the input for a per-model failure-mode analysis.
+-- raw_response is stored as a JSON string, so #>> '{}' returns the unescaped text the model actually sent.
+SELECT
+    an.individual_id,
+    ra.model_slug,
+    an.status,
+    COALESCE(an.response_meta->>'finish_reason', '')::text AS finish_reason,
+    COALESCE(an.response_meta->>'completion_tokens', '')::text AS completion_tokens,
+    COALESCE(an.raw_response #>> '{}', '')::text AS raw_response
+FROM annotations an
+JOIN run_annotators ra on ra.run_id = an.run_id and ra.annotator_id = an.annotator_id
+WHERE an.run_id = sqlc.arg(run_id)
+    AND an.status <> 'completed'
+ORDER BY ra.model_slug, an.individual_id;
+
+-- name: AnalysisSampleStrata :many
+-- The stratified adjudication sample behind a gold run: one row per (sample, review) with the stratum it
+-- was drawn from (silent / flagged_split / flagged_majority, classified by the sample's panel-run votes) and
+-- the inverse-probability selection weight. Lets the notebook show that the gold is a stratified subset, not
+-- the corpus, so the calibration metrics are read as sample-conditional.
+SELECT s.id AS sample_id,
+    s.panel_run_id,
+    si.individual_id,
+    si.stratum,
+    si.selection_prob
+FROM adjudication_samples s
+JOIN adjudication_sample_items si ON si.sample_id = s.id
+WHERE s.gold_run_id = sqlc.arg(gold_run_id)
+ORDER BY s.id, si.individual_id;
+
+-- name: AnalysisSeedVotes :many
+-- The per-model panel votes frozen in each adjudication's seed (the panel that was on screen at decision
+-- time), lateral-expanded from panel_seed_at_adjudication->'votes'. Lets the notebook prove that the live
+-- annotations of the adjudicated run match the frozen seed, so deriving the majority is faithful.
+SELECT a.individual_id,
+    m.code,
+    (v->>'model_slug')::text AS model_slug,
+    (v->>'present')::boolean AS present
+FROM adjudications a
+JOIN taxonomy_meso_levels m ON m.id = a.pattern_id
+CROSS JOIN LATERAL jsonb_array_elements(a.panel_seed_at_adjudication->'votes') AS v
+WHERE a.run_id = sqlc.arg(gold_run_id)
+ORDER BY a.individual_id, m.code;
+
 

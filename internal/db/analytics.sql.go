@@ -65,6 +65,60 @@ func (q *Queries) AnalysisAnnotations(ctx context.Context, runID int32) ([]Analy
 	return items, nil
 }
 
+const analysisFailures = `-- name: AnalysisFailures :many
+SELECT
+    an.individual_id,
+    ra.model_slug,
+    an.status,
+    COALESCE(an.response_meta->>'finish_reason', '')::text AS finish_reason,
+    COALESCE(an.response_meta->>'completion_tokens', '')::text AS completion_tokens,
+    COALESCE(an.raw_response #>> '{}', '')::text AS raw_response
+FROM annotations an
+JOIN run_annotators ra on ra.run_id = an.run_id and ra.annotator_id = an.annotator_id
+WHERE an.run_id = $1
+    AND an.status <> 'completed'
+ORDER BY ra.model_slug, an.individual_id
+`
+
+type AnalysisFailuresRow struct {
+	IndividualID     int64  `json:"individual_id"`
+	ModelSlug        string `json:"model_slug"`
+	Status           string `json:"status"`
+	FinishReason     string `json:"finish_reason"`
+	CompletionTokens string `json:"completion_tokens"`
+	RawResponse      string `json:"raw_response"`
+}
+
+// Every annotation that did not complete, for one run, with its model, finish reason, token count, and the
+// raw text the model returned that failed to parse -- the input for a per-model failure-mode analysis.
+// raw_response is stored as a JSON string, so #>> '{}' returns the unescaped text the model actually sent.
+func (q *Queries) AnalysisFailures(ctx context.Context, runID int32) ([]AnalysisFailuresRow, error) {
+	rows, err := q.db.Query(ctx, analysisFailures, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AnalysisFailuresRow{}
+	for rows.Next() {
+		var i AnalysisFailuresRow
+		if err := rows.Scan(
+			&i.IndividualID,
+			&i.ModelSlug,
+			&i.Status,
+			&i.FinishReason,
+			&i.CompletionTokens,
+			&i.RawResponse,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const analysisGold = `-- name: AnalysisGold :many
 SELECT adj.individual_id,
     m.code,
@@ -102,6 +156,103 @@ func (q *Queries) AnalysisGold(ctx context.Context, goldRunID int32) ([]Analysis
 			&i.Pass,
 			&i.FinalLabel,
 			&i.Direction,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const analysisSampleStrata = `-- name: AnalysisSampleStrata :many
+SELECT s.id AS sample_id,
+    s.panel_run_id,
+    si.individual_id,
+    si.stratum,
+    si.selection_prob
+FROM adjudication_samples s
+JOIN adjudication_sample_items si ON si.sample_id = s.id
+WHERE s.gold_run_id = $1
+ORDER BY s.id, si.individual_id
+`
+
+type AnalysisSampleStrataRow struct {
+	SampleID      int64   `json:"sample_id"`
+	PanelRunID    int32   `json:"panel_run_id"`
+	IndividualID  int64   `json:"individual_id"`
+	Stratum       string  `json:"stratum"`
+	SelectionProb float64 `json:"selection_prob"`
+}
+
+// The stratified adjudication sample behind a gold run: one row per (sample, review) with the stratum it
+// was drawn from (silent / flagged_split / flagged_majority, classified by the sample's panel-run votes) and
+// the inverse-probability selection weight. Lets the notebook show that the gold is a stratified subset, not
+// the corpus, so the calibration metrics are read as sample-conditional.
+func (q *Queries) AnalysisSampleStrata(ctx context.Context, goldRunID int32) ([]AnalysisSampleStrataRow, error) {
+	rows, err := q.db.Query(ctx, analysisSampleStrata, goldRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AnalysisSampleStrataRow{}
+	for rows.Next() {
+		var i AnalysisSampleStrataRow
+		if err := rows.Scan(
+			&i.SampleID,
+			&i.PanelRunID,
+			&i.IndividualID,
+			&i.Stratum,
+			&i.SelectionProb,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const analysisSeedVotes = `-- name: AnalysisSeedVotes :many
+SELECT a.individual_id,
+    m.code,
+    (v->>'model_slug')::text AS model_slug,
+    (v->>'present')::boolean AS present
+FROM adjudications a
+JOIN taxonomy_meso_levels m ON m.id = a.pattern_id
+CROSS JOIN LATERAL jsonb_array_elements(a.panel_seed_at_adjudication->'votes') AS v
+WHERE a.run_id = $1
+ORDER BY a.individual_id, m.code
+`
+
+type AnalysisSeedVotesRow struct {
+	IndividualID int64  `json:"individual_id"`
+	Code         string `json:"code"`
+	ModelSlug    string `json:"model_slug"`
+	Present      bool   `json:"present"`
+}
+
+// The per-model panel votes frozen in each adjudication's seed (the panel that was on screen at decision
+// time), lateral-expanded from panel_seed_at_adjudication->'votes'. Lets the notebook prove that the live
+// annotations of the adjudicated run match the frozen seed, so deriving the majority is faithful.
+func (q *Queries) AnalysisSeedVotes(ctx context.Context, goldRunID int32) ([]AnalysisSeedVotesRow, error) {
+	rows, err := q.db.Query(ctx, analysisSeedVotes, goldRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AnalysisSeedVotesRow{}
+	for rows.Next() {
+		var i AnalysisSeedVotesRow
+		if err := rows.Scan(
+			&i.IndividualID,
+			&i.Code,
+			&i.ModelSlug,
+			&i.Present,
 		); err != nil {
 			return nil, err
 		}

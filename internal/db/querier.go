@@ -13,9 +13,22 @@ type Querier interface {
 	// Long format for one run: one row per (review x panel model) x pattern with present being a flag
 	// that indicates the model detected that pattern in the review
 	AnalysisAnnotations(ctx context.Context, runID int32) ([]AnalysisAnnotationsRow, error)
+	// Every annotation that did not complete, for one run, with its model, finish reason, token count, and the
+	// raw text the model returned that failed to parse -- the input for a per-model failure-mode analysis.
+	// raw_response is stored as a JSON string, so #>> '{}' returns the unescaped text the model actually sent.
+	AnalysisFailures(ctx context.Context, runID int32) ([]AnalysisFailuresRow, error)
 	// The adjudicated gold for a gold run, long format per (review, pattern, pass). final_label is the
 	// human annotator call; direction records whether it confirmed or replaced the panel majority at decision time.
 	AnalysisGold(ctx context.Context, goldRunID int32) ([]AnalysisGoldRow, error)
+	// The stratified adjudication sample behind a gold run: one row per (sample, review) with the stratum it
+	// was drawn from (silent / flagged_split / flagged_majority, classified by the sample's panel-run votes) and
+	// the inverse-probability selection weight. Lets the notebook show that the gold is a stratified subset, not
+	// the corpus, so the calibration metrics are read as sample-conditional.
+	AnalysisSampleStrata(ctx context.Context, goldRunID int32) ([]AnalysisSampleStrataRow, error)
+	// The per-model panel votes frozen in each adjudication's seed (the panel that was on screen at decision
+	// time), lateral-expanded from panel_seed_at_adjudication->'votes'. Lets the notebook prove that the live
+	// annotations of the adjudicated run match the frozen seed, so deriving the majority is faithful.
+	AnalysisSeedVotes(ctx context.Context, goldRunID int32) ([]AnalysisSeedVotesRow, error)
 	// The raw panel coverage for a run
 	AnalysisStatus(ctx context.Context, runID int32) ([]AnalysisStatusRow, error)
 	// freeze a draft as the approved version. blocked unless it is a draft with no unresolved valence flags.

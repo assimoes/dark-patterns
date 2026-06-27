@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -54,25 +56,79 @@ type AnalysisRunMeta struct {
 // AnalysisExport is everything the notebook needs for one run: the run configuration, the long-format panel
 // annotations, the population adjudicated gold (both passes), and the raw panel status. The notebook
 // calls this once per run.
+// AnalysisFailureRow is one annotation that did not complete: its model, status, finish reason, completion
+// token count, and the raw text the model returned that failed to parse — the input for failure-mode analysis.
+type AnalysisFailureRow struct {
+	IndividualID     int64  `json:"individualId"`
+	ModelSlug        string `json:"modelSlug"`
+	Status           string `json:"status"`
+	FinishReason     string `json:"finishReason"`
+	CompletionTokens string `json:"completionTokens"`
+	RawResponse      string `json:"rawResponse"`
+}
+
+// AnalysisPatternDistRow is one (game, pattern) cell of the run's detection profile: how many reviews a
+// majority of the completed panel flagged for that meso code in that game.
+type AnalysisPatternDistRow struct {
+	ExternalGameID int32  `json:"externalGameId"`
+	GameName       string `json:"gameName"`
+	Code           string `json:"code"`
+	Reviews        int32  `json:"reviews"`
+}
+
+// AnalysisSampleRow is one (sample, review) of the stratified adjudication sample behind the gold run: the
+// stratum it was drawn from and the inverse-probability selection weight — so the notebook can show the gold
+// is a stratified subset, not the corpus.
+type AnalysisSampleRow struct {
+	SampleID      int64   `json:"sampleId"`
+	PanelRunID    int32   `json:"panelRunId"`
+	IndividualID  int64   `json:"individualId"`
+	Stratum       string  `json:"stratum"`
+	SelectionProb float64 `json:"selectionProb"`
+}
+
+// AnalysisSeedRow is one per-model vote frozen in an adjudication's seed (the panel that was on screen at
+// decision time). Lets the notebook verify the live annotations of the adjudicated run match the seed.
+type AnalysisSeedRow struct {
+	IndividualID int64  `json:"individualId"`
+	Code         string `json:"code"`
+	ModelSlug    string `json:"modelSlug"`
+	Present      bool   `json:"present"`
+}
+
 type AnalysisExport struct {
-	Run         AnalysisRunMeta     `json:"run"`
-	Annotations []AnalysisRow       `json:"annotations"`
-	Gold        []AnalysisGoldRow   `json:"gold"`
-	Status      []AnalysisStatusRow `json:"status"`
+	Run                 AnalysisRunMeta          `json:"run"`
+	Annotations         []AnalysisRow            `json:"annotations"`
+	Gold                []AnalysisGoldRow        `json:"gold"`
+	Status              []AnalysisStatusRow      `json:"status"`
+	Failures            []AnalysisFailureRow     `json:"failures"`
+	PatternDistribution []AnalysisPatternDistRow `json:"patternDistribution"`
+	SampleStrata        []AnalysisSampleRow      `json:"sampleStrata"`
+	SeedVotes           []AnalysisSeedRow        `json:"seedVotes"`
 }
 
 func (s *Server) analysisExport(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
 	id, ok := s.pathID(w, r, "id")
 	if !ok {
 		return
 	}
 
-	run, err := s.q.GetRun(ctx, id)
+	export, err := s.collectAnalysis(r.Context(), id)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "get run", err)
+		s.writeError(w, http.StatusInternalServerError, "analysis export", err)
 		return
+	}
+
+	s.writeJSON(w, http.StatusOK, export)
+}
+
+// collectAnalysis assembles the full analysis dataset for one run: the run config, the long-format panel
+// annotations, the population's adjudicated gold (both passes), and the raw panel status. Shared by the JSON
+// per-run handler and the CSV/zip export.
+func (s *Server) collectAnalysis(ctx context.Context, runID int32) (AnalysisExport, error) {
+	run, err := s.q.GetRun(ctx, runID)
+	if err != nil {
+		return AnalysisExport{}, fmt.Errorf("get run %d: %w", runID, err)
 	}
 
 	version := int32(1)
@@ -82,10 +138,8 @@ func (s *Server) analysisExport(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.q.AnalysisAnnotations(ctx, run.ID)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "load annotations", err)
-		return
+		return AnalysisExport{}, fmt.Errorf("load annotations: %w", err)
 	}
-
 	annotations := make([]AnalysisRow, 0, len(rows))
 	for _, row := range rows {
 		annotations = append(annotations, AnalysisRow{
@@ -98,11 +152,12 @@ func (s *Server) analysisExport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	gold := make([]AnalysisGoldRow, 0)
+	sampleStrata := make([]AnalysisSampleRow, 0)
+	seedVotes := make([]AnalysisSeedRow, 0)
 	if goldRun, err := s.q.GetGoldRunForPopulation(ctx, run.PopulationID); err == nil {
 		grows, err := s.q.AnalysisGold(ctx, goldRun)
 		if err != nil {
-			s.writeError(w, http.StatusInternalServerError, "load gold", err)
-			return
+			return AnalysisExport{}, fmt.Errorf("load gold: %w", err)
 		}
 		for _, row := range grows {
 			gold = append(gold, AnalysisGoldRow{
@@ -113,12 +168,38 @@ func (s *Server) analysisExport(w http.ResponseWriter, r *http.Request) {
 				Direction:    row.Direction,
 			})
 		}
+
+		strataRows, err := s.q.AnalysisSampleStrata(ctx, goldRun)
+		if err != nil {
+			return AnalysisExport{}, fmt.Errorf("load sample strata: %w", err)
+		}
+		for _, row := range strataRows {
+			sampleStrata = append(sampleStrata, AnalysisSampleRow{
+				SampleID:      row.SampleID,
+				PanelRunID:    row.PanelRunID,
+				IndividualID:  row.IndividualID,
+				Stratum:       row.Stratum,
+				SelectionProb: row.SelectionProb,
+			})
+		}
+
+		seedRows, err := s.q.AnalysisSeedVotes(ctx, goldRun)
+		if err != nil {
+			return AnalysisExport{}, fmt.Errorf("load seed votes: %w", err)
+		}
+		for _, row := range seedRows {
+			seedVotes = append(seedVotes, AnalysisSeedRow{
+				IndividualID: row.IndividualID,
+				Code:         row.Code,
+				ModelSlug:    row.ModelSlug,
+				Present:      row.Present,
+			})
+		}
 	}
 
 	srows, err := s.q.AnalysisStatus(ctx, run.ID)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "load status", err)
-		return
+		return AnalysisExport{}, fmt.Errorf("load status: %w", err)
 	}
 	status := make([]AnalysisStatusRow, 0, len(srows))
 	for _, row := range srows {
@@ -130,14 +211,43 @@ func (s *Server) analysisExport(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	frows, err := s.q.AnalysisFailures(ctx, run.ID)
+	if err != nil {
+		return AnalysisExport{}, fmt.Errorf("load failures: %w", err)
+	}
+	failures := make([]AnalysisFailureRow, 0, len(frows))
+	for _, row := range frows {
+		failures = append(failures, AnalysisFailureRow{
+			IndividualID:     row.IndividualID,
+			ModelSlug:        row.ModelSlug,
+			Status:           row.Status,
+			FinishReason:     row.FinishReason,
+			CompletionTokens: row.CompletionTokens,
+			RawResponse:      row.RawResponse,
+		})
+	}
+
+	drows, err := s.q.RunPatternDistribution(ctx, run.ID)
+	if err != nil {
+		return AnalysisExport{}, fmt.Errorf("load pattern distribution: %w", err)
+	}
+	dist := make([]AnalysisPatternDistRow, 0, len(drows))
+	for _, row := range drows {
+		dist = append(dist, AnalysisPatternDistRow{
+			ExternalGameID: row.ExternalGameID,
+			GameName:       row.GameName,
+			Code:           row.Code,
+			Reviews:        row.Reviews,
+		})
+	}
+
 	prompt, err := s.q.GetPrompt(ctx, run.PromptID)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "load prompt", err)
-		return
+		return AnalysisExport{}, fmt.Errorf("load prompt: %w", err)
 	}
 	panel, _ := s.panelSlugs(ctx, run.ID)
 
-	s.writeJSON(w, http.StatusOK, AnalysisExport{
+	return AnalysisExport{
 		Run: AnalysisRunMeta{
 			RunID:           int(run.ID),
 			Label:           dto.RunLabel(run.RunType, run.ID),
@@ -148,8 +258,12 @@ func (s *Server) analysisExport(w http.ResponseWriter, r *http.Request) {
 			Temperature:     numericFloat(run.Temperature),
 			Panel:           panel,
 		},
-		Annotations: annotations,
-		Gold:        gold,
-		Status:      status,
-	})
+		Annotations:         annotations,
+		Gold:                gold,
+		Status:              status,
+		Failures:            failures,
+		PatternDistribution: dist,
+		SampleStrata:        sampleStrata,
+		SeedVotes:           seedVotes,
+	}, nil
 }
