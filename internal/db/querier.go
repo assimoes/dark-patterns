@@ -232,6 +232,8 @@ type Querier interface {
 	// game within a single population instead of by population within a single game.
 	PopulationPerGame(ctx context.Context, populationID int32) ([]PopulationPerGameRow, error)
 	ReviewStatsPerGame(ctx context.Context) ([]ReviewStatsPerGameRow, error)
+	// whether an adjudication sample has been drawn for this run, either as the panel source or the gold target.
+	RunHasSample(ctx context.Context, runID int32) (bool, error)
 	// the blast radius of deleting a run: its annotations, the adjudication samples it seeds (as panel or
 	// gold), and its adjudications.
 	RunImpact(ctx context.Context, runID int32) (RunImpactRow, error)
