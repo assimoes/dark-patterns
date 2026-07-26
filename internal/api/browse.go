@@ -119,7 +119,11 @@ func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
 		panel = append(panel, dto.Member{Kind: m.Kind, Label: m.Label})
 	}
 
-	hasSample := false
+	hasSample, err := s.q.RunHasSample(ctx, runID)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "load run sample status", err)
+		return
+	}
 
 	s.writeJSON(w, http.StatusOK, dto.NewRunDetail(run, pop.Modality, panel, hasSample))
 }

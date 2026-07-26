@@ -2,5 +2,8 @@
 steam-worker
 .vscode
 node_modules
-
+.venv
+.DS_Store
 __debug_*
+*.zip
+.ipynb_checkpoints

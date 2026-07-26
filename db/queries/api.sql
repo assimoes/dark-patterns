@@ -38,6 +38,13 @@ JOIN annotators an ON an.id = ANY(r.annotator_ids)
 LEFT JOIN models m ON m.id = an.model_id
 WHERE r.id = sqlc.arg(run_id)
 ORDER BY an.kind, an.id;
+
+-- name: RunHasSample :one
+-- whether an adjudication sample has been drawn for this run, either as the panel source or the gold target.
+SELECT EXISTS(
+    SELECT 1 FROM adjudication_samples
+    WHERE panel_run_id = sqlc.arg(run_id) OR gold_run_id = sqlc.arg(run_id)
+);
  
 -- name: ReviewStatsPerGame :many
 SELECT
