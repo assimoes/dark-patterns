@@ -19,3 +19,7 @@ migrate-tests-up:
 
 migrate-tests-down:
 	@migrate -database $(TEST_DATABASE_URL) -path db/migrations down
+
+analysis:
+	python3 -m venv .venv
+	source .venv/bin/activate
