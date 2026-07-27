@@ -179,7 +179,7 @@ derivados; regeneram-se sempre que o notebook corre.
 
 ## 7. Funções locais dos notebooks
 
-### 09_factorial-2x2
+### 09_configuracoes-2x2
 
 - `macro_micro(pred, run, reviews)` e `run_scores(run, reviews)` — pontuam a maioria de uma
   execução (macro e micro) contra a referência, restringindo às avaliações adjudicadas; o
