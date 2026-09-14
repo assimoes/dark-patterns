@@ -1069,3 +1069,18 @@ func (q *Queries) ReviewStatsPerGame(ctx context.Context) ([]ReviewStatsPerGameR
 	}
 	return items, nil
 }
+
+const runHasSample = `-- name: RunHasSample :one
+SELECT EXISTS(
+    SELECT 1 FROM adjudication_samples
+    WHERE panel_run_id = $1 OR gold_run_id = $1
+)
+`
+
+// whether an adjudication sample has been drawn for this run, either as the panel source or the gold target.
+func (q *Queries) RunHasSample(ctx context.Context, runID int32) (bool, error) {
+	row := q.db.QueryRow(ctx, runHasSample, runID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
