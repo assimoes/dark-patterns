@@ -151,3 +151,8 @@ I built this with the help of an AI assistant (Claude). I used it mostly to save
 followed patterns already set in the codebase, so newer features were built the same way as the existing
 ones, plus some ideation, bug fixing and refactors. I directed the work, reviewed the changes, and the
 design decisions and the research are mine.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The analytical export shipped here (`analysis-export.zip`) holds
+identifiers, annotations and labels only; it carries no review text.
